@@ -54,6 +54,18 @@ describe('BeatAPI decision dispatch', () => {
   });
 });
 
+it('routes BeatAPI web search to its search endpoint with the documented request format', async () => {
+  seed('beatapi', 'beatapi-search', 'search');
+  const fetch = vi.spyOn(global, 'fetch').mockResolvedValue(json({ object: 'web.search', results: [
+    { title: 'Example', url: 'https://example.com/', snippet: 'Search result' },
+  ] }));
+  const result = await runSearch('cats', { engine: 'beatapi-search', maxResults: 20, topic: 'news' });
+  expect(result.results[0]).toMatchObject({ title: 'Example', content: 'Search result' });
+  const [url, init] = fetch.mock.calls[0];
+  expect(url).toBe('https://api.beatapi.io/v1/web/search');
+  expect(JSON.parse(String(init?.body))).toEqual({ query: 'cats', max_results: 10, type: 'news' });
+});
+
 // #1599: SerpSearch's maintainer asked for no empty-query requests, so no
 // health path may send one, and a real search is what marks the key working.
 it('never sends a request to check a SerpSearch key, and a real search marks it healthy', async () => {
@@ -141,4 +153,16 @@ it('loads new modalities only from the catalog, idempotently preserving premiumS
     expect(JSON.parse(row.meta_json).premiumSince).toBe(premiumSince);
   }
   expect(db.prepare("SELECT COUNT(*) n FROM models WHERE platform IN ('beatapi', 'serpsearch')").get()).toEqual({ n: 0 });
+});
+
+it('retains locally added capabilities across catalog updates', () => {
+  const db = getDb();
+  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, meta_json) VALUES ('beatapi', 'jev-1.14-free', 'Jev', 'decision', 1, ?)").run(JSON.stringify({ userAdded: true }));
+  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, meta_json) VALUES ('beatapi', 'beatapi-search', 'BeatAPI Search', 'search', 0, ?)").run(JSON.stringify({ userAdded: true }));
+  applyCatalog(db, { version: '2099.01.01', generatedAt: '2026-10-18T12:00:00.000Z', tier: 'live', models: [], quirks: [],
+    decisionModels: [{ platform: 'beatapi', modelId: 'jev-1.14-free', displayName: 'Catalog Jev', priority: 0, enabled: false }],
+    searchEngines: [{ platform: 'beatapi', engineId: 'beatapi-search', displayName: 'Catalog Search', priority: 0, enabled: true }] });
+  expect(db.prepare("SELECT enabled FROM media_models WHERE platform = 'beatapi' AND modality = 'decision'").get()).toEqual({ enabled: 1 });
+  applyCatalog(db, { version: '2099.01.01', generatedAt: '2026-10-18T12:00:00.000Z', tier: 'live', models: [], quirks: [], decisionModels: [], searchEngines: [] });
+  expect(db.prepare("SELECT count(*) n FROM media_models WHERE platform = 'beatapi'").get()).toEqual({ n: 2 });
 });

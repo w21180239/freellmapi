@@ -5,6 +5,7 @@ import { hasProvider } from '../providers/index.js';
 import { MEDIA_PLATFORMS, TRANSCRIPTION_PLATFORMS, VIDEO_PLATFORMS } from './media.js';
 import { SEARCH_ENGINE_PLATFORMS, SEARCH_MODALITY } from './search.js';
 import { DECISION_MODALITY, DECISION_PLATFORMS } from './decision.js';
+import { isLocalCapability } from './local-capabilities.js';
 import { EMBEDDING_PLATFORMS } from './embeddings.js';
 import type { Platform } from '@freellmapi/shared/types.js';
 import type { Scheduler } from '../lib/scheduler.js';
@@ -528,7 +529,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
   `);
 
   // Generative-media models go to their own table (never the chat router's pool).
-  const selectMedia = db.prepare('SELECT id, enabled FROM media_models WHERE platform = ? AND model_id = ?');
+  const selectMedia = db.prepare('SELECT id, enabled, meta_json FROM media_models WHERE platform = ? AND model_id = ?');
   const updateMedia = db.prepare(`
     UPDATE media_models SET
       display_name = @displayName, modality = @modality, priority = @priority,
@@ -736,8 +737,9 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
           quotaLabel: e.quotaLabel ?? '',
           metaJson: JSON.stringify(meta),
         };
-        const row = selectMedia.get(e.platform, e.engineId) as { id: number; enabled: number } | undefined;
+        const row = selectMedia.get(e.platform, e.engineId) as { id: number; enabled: number; meta_json: string | null } | undefined;
         if (row) {
+          if (isLocalCapability(row.meta_json)) continue;
           const enabled = e.enabled ? row.enabled : 0;
           updateMedia.run({ ...fields, id: row.id, enabled });
           counts.updated++;
@@ -768,8 +770,9 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
           quotaLabel: m.quotaLabel ?? '',
           metaJson: JSON.stringify(meta),
         };
-        const row = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
+        const row = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number; meta_json: string | null } | undefined;
         if (row) {
+          if (isLocalCapability(row.meta_json)) continue;
           const enabled = m.enabled ? row.enabled : 0;
           updateMedia.run({ ...fields, id: row.id, enabled });
           counts.updated++;
@@ -964,9 +967,10 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // and never pruned.
     if (catalog.searchEngines) {
       const searchCandidates = db
-        .prepare('SELECT id, platform, model_id FROM media_models WHERE modality = ?')
-        .all(SEARCH_MODALITY) as { id: number; platform: string; model_id: string }[];
+        .prepare('SELECT id, platform, model_id, meta_json FROM media_models WHERE modality = ?')
+        .all(SEARCH_MODALITY) as { id: number; platform: string; model_id: string; meta_json: string | null }[];
       for (const c of searchCandidates) {
+        if (isLocalCapability(c.meta_json)) continue;
         if (!SEARCH_ENGINE_PLATFORMS.has(c.platform)) continue;
         if (!inSearchCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
@@ -979,9 +983,10 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // snapshot (same rule as search engines).
     if (catalog.decisionModels) {
       const decisionCandidates = db
-        .prepare('SELECT id, platform, model_id FROM media_models WHERE modality = ?')
-        .all(DECISION_MODALITY) as { id: number; platform: string; model_id: string }[];
+        .prepare('SELECT id, platform, model_id, meta_json FROM media_models WHERE modality = ?')
+        .all(DECISION_MODALITY) as { id: number; platform: string; model_id: string; meta_json: string | null }[];
       for (const c of decisionCandidates) {
+        if (isLocalCapability(c.meta_json)) continue;
         if (!DECISION_PLATFORMS.has(c.platform)) continue;
         if (!inDecisionCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);

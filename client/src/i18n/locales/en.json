@@ -1299,7 +1299,7 @@
   },
   "decision": {
     "tab": "Decision",
-    "pageDesc": "Decision models answer a question about your text with a choice, a yes or no, or a score, and say how confident they are. They run on your Cloudflare and OpenRouter keys.",
+    "pageDesc": "Decision models answer a question about your text with a choice, a yes or no, or a score, and say how confident they are. They use the key for their provider.",
     "endpointHint": "Call via",
     "notRoutingHint": "— separate from chat. Chat routing only uses them when the Decision routing strategy is on.",
     "empty": "No decision models yet. They sync from the catalog.",

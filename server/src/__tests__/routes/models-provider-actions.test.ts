@@ -212,6 +212,20 @@ describe('Model Provider Actions API', () => {
   });
 
   describe('POST /api/models/:id/test', () => {
+    it('directs search-only entries to search testing without calling chat', async () => {
+      const created = await post(app, '/api/models', { platform: 'serpsearch', modelId: 'search-free' });
+      const result = await post(app, `/api/models/${created.body.id}/test`);
+      expect(result.body.success).toBe(false);
+      expect(result.body.error).toContain('Models → Search');
+    });
+
+    it('directs a known decision model to decision testing even if a chat row exists', async () => {
+      const created = await post(app, '/api/models', { platform: 'beatapi', modelId: 'jev-1.14-free' });
+      getDb().prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled) VALUES ('beatapi', 'jev-1.14-free', 'Jev', 'decision', 1)").run();
+      const result = await post(app, `/api/models/${created.body.id}/test`);
+      expect(result.body.success).toBe(false);
+      expect(result.body.error).toContain('Models → Decision');
+    });
     it('returns 404 for unknown model id', async () => {
       const res = await post(app, '/api/models/9999999/test');
       expect(res.status).toBe(404);

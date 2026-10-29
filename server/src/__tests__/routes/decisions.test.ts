@@ -69,6 +69,13 @@ describe('decision routes', () => {
     vi.restoreAllMocks();
   });
 
+  it('registers a local decision model using an existing provider key', async () => {
+    addKey('beatapi', 'test-key');
+    const response = await call(app, 'POST', '/api/decisions/models', { body: { platform: 'beatapi', modelId: 'jev-1.14-free', displayName: 'Jev 1.14 Free' } });
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ platform: 'beatapi', modelId: 'jev-1.14-free', enabled: false, keyCount: 1 });
+  });
+
   it('POST /v1/decisions needs the unified key', async () => {
     const res = await call(app, 'POST', '/v1/decisions', { body: BODY, auth: null });
     expect(res.status).toBe(401);

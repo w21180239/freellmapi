@@ -5,6 +5,7 @@ import { getClientContext } from '../lib/client-context.js';
 import { proxyFetch } from '../lib/proxy.js';
 import { isSearchPlatform } from '../lib/search-platforms.js';
 import { TAVILY_BASE_URL } from '../providers/tavily.js';
+import { BEATAPI_BASE_URL } from '../providers/beatapi.js';
 import { SERPSEARCH_BASE_URL } from '../providers/serpsearch.js';
 import { BRAVE_BASE_URL, BRAVE_BAD_KEY_CODE } from '../providers/brave.js';
 import { EXA_BASE_URL } from '../providers/exa.js';
@@ -91,6 +92,7 @@ export interface SearchOptions {
   includeAnswer?: boolean;
   /** Pin one engine by id; omitted or 'auto' walks the whole chain. */
   engine?: string;
+  engineRowId?: number;
   /** Agent the search runs for (e.g. 'claude-code'); defaults to the request's
    *  detected client. Recorded on search_requests. */
   clientAgent?: string | null;
@@ -302,6 +304,20 @@ async function tavilyShaped(url: string, platform: string, cred: ReservedProvide
 }
 
 const ADAPTERS: Record<string, Adapter> = {
+  beatapi: async (cred, query, opts, n) => {
+    const parsed = await upstream(`${BEATAPI_BASE_URL}/web/search`, 'beatapi', {
+      method: 'POST', redirect: 'error',
+      headers: { Authorization: `Bearer ${cred.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, max_results: Math.min(n, 10), ...(opts.topic === 'news' ? { type: 'news' } : {}) }),
+    }, opts.signal) as { results?: unknown; error?: unknown } | null;
+    if (!parsed || parsed.error || !Array.isArray(parsed.results)) {
+      throw new SearchError('BeatAPI returned invalid search results', 502);
+    }
+    const hits = parsed.results.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object').map(r => ({
+      title: str(r.title), url: str(r.url), content: str(r.snippet),
+    }));
+    return { results: keepHits(hits) };
+  },
   serpsearch: async (cred, query, opts, n) => {
     const news = opts.topic === 'news';
     const url = new URL(`${SERPSEARCH_BASE_URL}/${news ? 'news' : 'search'}`);
@@ -636,8 +652,13 @@ export function noSearchMessage(s: SearchStatus = searchStatus()): string {
   return `No search engine is ready. ${parts.join(' ')}`.trim();
 }
 
-function searchChain(engine: string | undefined): SearchEngineRow[] {
+function searchChain(engine: string | undefined, engineRowId?: number): SearchEngineRow[] {
   const enabled = orderedEngines().filter(r => r.enabled === 1 && ADAPTERS[r.platform]);
+  if (engineRowId !== undefined) {
+    const row = enabled.find(r => r.id === engineRowId);
+    if (!row) throw new SearchError('Search engine is unavailable or disabled', 400);
+    return [row];
+  }
   // Custom relays first, catalog engines after, each group in effective order.
   const chain = [...enabled.filter(r => r.platform === 'custom'), ...enabled.filter(r => r.platform !== 'custom')];
   if (!engine || engine === 'auto') return chain;
@@ -655,7 +676,7 @@ function searchChain(engine: string | undefined): SearchEngineRow[] {
 }
 
 export async function runSearch(query: string, opts: SearchOptions = {}): Promise<SearchResponse> {
-  const chain = searchChain(opts.engine);
+  const chain = searchChain(opts.engine, opts.engineRowId);
   const maxResults = Math.min(Math.max(1, Math.floor(opts.maxResults ?? DEFAULT_RESULTS)), MAX_RESULTS);
   const clientAgent = opts.clientAgent !== undefined ? opts.clientAgent : getClientContext().agent;
   // Rough token estimate for the ledger row (~4 chars/token), the same

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { listSearchEngines, updateSearchEngine } from '../services/search.js';
+import { listSearchEngines, updateSearchEngine, runSearch, SearchError, SEARCH_ENGINE_PLATFORMS } from '../services/search.js';
+import { registerLocalCapability } from '../services/local-capabilities.js';
 
 // Dashboard: the Models → Search page (#1174). Engines come from the catalog's
 // searchEngines registry (plus custom relays); this lists them with key and
@@ -10,6 +11,34 @@ export const searchRouter = Router();
 
 searchRouter.get('/engines', (_req: Request, res: Response) => {
   res.json(listSearchEngines());
+});
+
+searchRouter.post('/engines', (req: Request, res: Response) => {
+  const parsed = z.object({ platform: z.string().trim().min(1), engineId: z.string().trim().min(1).max(200), displayName: z.string().trim().min(1).max(200), quotaLabel: z.string().trim().max(200).optional() }).strict().safeParse(req.body);
+  if (!parsed.success || !SEARCH_ENGINE_PLATFORMS.has(parsed.data.platform)) {
+    res.status(400).json({ error: { message: 'Unsupported search provider or invalid engine' } }); return;
+  }
+  try {
+    const id = registerLocalCapability(parsed.data.platform, parsed.data.engineId, parsed.data.displayName, 'search', parsed.data.quotaLabel);
+    res.status(201).json(listSearchEngines().find(e => e.id === id));
+  } catch (err: unknown) {
+    res.status((err as { status?: number }).status ?? 500).json({ error: { message: err instanceof Error ? err.message : 'Registration failed' } });
+  }
+});
+
+searchRouter.post('/engines/:id/test', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const parsed = z.object({ query: z.string().trim().min(1).max(400) }).safeParse(req.body);
+  if (!Number.isInteger(id) || id <= 0 || !parsed.success) {
+    res.status(400).json({ error: { message: 'A valid engine and query are required' } });
+    return;
+  }
+  try {
+    res.json(await runSearch(parsed.data.query, { engineRowId: id, maxResults: 1, clientAgent: 'dashboard' }));
+  } catch (err: unknown) {
+    const status = err instanceof SearchError ? err.status : 502;
+    res.status(status).json({ error: { message: err instanceof Error ? err.message : 'Search test failed' } });
+  }
 });
 
 const patchSchema = z.object({

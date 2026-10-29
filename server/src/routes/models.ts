@@ -23,6 +23,7 @@ import { logRequest } from '../lib/request-log.js';
 import { withKeyProxy } from '../lib/proxy.js';
 import { sanitizeProviderErrorMessage } from '../lib/error-redaction.js';
 import { recordRequest, recordTokens } from '../services/ratelimit.js';
+import { isSearchPlatform } from '../lib/search-platforms.js';
 
 export const modelsRouter = Router();
 
@@ -373,6 +374,14 @@ modelsRouter.post('/:id/test', async (req: Request, res: Response) => {
   const modelRow = fetchModelRow(id);
   if (!modelRow) {
     res.status(404).json({ error: { message: `Unknown model ${id}` } });
+    return;
+  }
+
+  const destination = modelRow.platform === 'beatapi' && /^jev-/i.test(modelRow.model_id) ? 'Models → Decision'
+    : isSearchPlatform(modelRow.platform) ? 'Models → Search'
+    : modelRow.platform === 'speechify' || modelRow.platform === 'freeai' ? 'the corresponding media page' : null;
+  if (destination) {
+    res.json({ success: false, modelId: modelRow.model_id, latencyMs: 0, error: `This is not a chat model. Test it from ${destination}.` });
     return;
   }
 
