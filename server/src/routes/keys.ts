@@ -42,8 +42,19 @@ export const keysRouter = Router();
 // existing keys still work if the catalog re-enables them. The setup
 // checklist stops suggesting them to anyone who has no key yet; the dashboard
 // pickers hide them through `hidden` in client/src/components/keys/shared.tsx.
-// Empty since Auray was removed outright (#1583).
-const UNLISTED_PLATFORMS = new Set<string>();
+// Local fork: hide unconfigured key-required providers the operator judged
+// useless (dead sites, no free tier, or $1/month tiers). iFlytek Spark (xfyun)
+// is kept. Re-enable by removing the platform from this set.
+const UNLISTED_PLATFORMS = new Set<string>([
+  'aclide',
+  'ainative',
+  'brave',
+  'cerebras',
+  'clod',
+  'mistral',
+  'speka',
+  'waterfall',
+]);
 
 // Active providers — must match providers/index.ts registrations + shared/types.ts Platform.
 // Moonshot and MiniMax direct integrations were dropped in V4. HuggingFace
