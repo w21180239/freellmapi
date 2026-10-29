@@ -77,6 +77,10 @@ export class DecisionError extends Error {
 export interface DecisionOptions {
   /** A decision model id, or 'auto' / undefined for the first one that works. */
   model?: string;
+  /** Pin one row of the decision registry (the dashboard's per-card Test). Two
+   *  rows can share a model id — a custom relay next to its catalog entry — and
+   *  `model` would try both, so a test could pass on a row nobody clicked. */
+  rowId?: number;
   signal?: AbortSignal;
   /** Overrides the request-scoped client agent (tests, internal callers). */
   clientAgent?: string | null;
@@ -392,8 +396,13 @@ export function decisionsAvailable(): boolean {
   return allDecisionRows().some(r => r.enabled === 1 && ADAPTERS[r.platform] && hasUsableKey(r.platform));
 }
 
-function decisionChain(model: string | undefined, skipPlatforms?: ReadonlySet<string>): DecisionModelRow[] {
+function decisionChain(model: string | undefined, skipPlatforms?: ReadonlySet<string>, rowId?: number): DecisionModelRow[] {
   const enabled = allDecisionRows().filter(r => r.enabled === 1 && ADAPTERS[r.platform]);
+  if (rowId !== undefined) {
+    const pinned = enabled.find(r => r.id === rowId);
+    if (!pinned) throw new DecisionError('Decision model is unavailable or turned off', 400);
+    return [pinned];
+  }
   if (!model || model === 'auto') return skipPlatforms ? enabled.filter(r => !skipPlatforms.has(r.platform)) : enabled;
   const pinned = enabled.filter(r => r.model_id === model);
   if (pinned.length === 0) {
@@ -409,7 +418,7 @@ function decisionChain(model: string | undefined, skipPlatforms?: ReadonlySet<st
 }
 
 export async function runDecision(body: DecisionRequest, opts: DecisionOptions = {}): Promise<DecisionResponse> {
-  const chain = decisionChain(opts.model, opts.skipPlatforms);
+  const chain = decisionChain(opts.model, opts.skipPlatforms, opts.rowId);
   const clientAgent = opts.clientAgent !== undefined ? opts.clientAgent : getClientContext().agent;
   const questionCount = Object.keys(body.questions).length;
 

@@ -42,6 +42,9 @@ async function call(app: Express, method: string, path: string, opts: { body?: u
 }
 
 const ANSWERS = { tier: { type: 'choice', choice: 'code', probabilities: { light: 0.1, code: 0.9 }, confidence: 0.8 } };
+// What the per-card test asks: one fixed positive/negative question, keyed
+// `answer` so the adapters' typed-answer check passes.
+const TEST_ANSWERS = { answer: { type: 'choice', choice: 'positive', confidence: 0.9, probabilities: { positive: 0.9, negative: 0.1 } } };
 const BODY = {
   state: 'fix: TypeError: Cannot read properties of undefined',
   questions: { tier: { type: 'choice', instructions: 'Which tier?', criteria: { light: 'chat', code: 'coding' } } },
@@ -148,5 +151,64 @@ describe('decision routes', () => {
   it('dashboard routes need the dashboard session', async () => {
     const res = await call(app, 'GET', '/api/decisions/models', { auth: null });
     expect(res.status).toBe(401);
+  });
+
+  it('tests one decision model from its card and reports which one answered', async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ success: true, result: { answers: TEST_ANSWERS, usage: { input_tokens: 9, output_tokens: 0 } } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ))) as unknown as typeof fetch;
+
+    const list = await call(app, 'GET', '/api/decisions/models');
+    const clef = list.body.find((m: { platform: string }) => m.platform === 'cloudflare');
+
+    const res = await call(app, 'POST', `/api/decisions/models/${clef.id}/test`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, model: '@cf/cloudflare/clef-flash', provider: 'cloudflare', answer: 'positive' });
+    expect(typeof res.body.latencyMs).toBe('number');
+    const sent = JSON.parse(((globalThis.fetch as any).mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.questions.answer).toMatchObject({ type: 'choice', criteria: { positive: null, negative: null } });
+  });
+
+  // Two rows can share a model id: a custom relay registered next to the catalog
+  // entry. Pinning by model id would let the test pass on the row nobody clicked.
+  it('pins the test to the row that was clicked', async () => {
+    addKey('beatapi', 'beatapi-key');
+    const created = await call(app, 'POST', '/api/decisions/models', {
+      body: { platform: 'beatapi', modelId: '@cf/cloudflare/clef-flash', displayName: 'Clef via BeatAPI' },
+    });
+    expect(created.status).toBe(201);
+    const rowId = created.body.id;
+    await call(app, 'PATCH', `/api/decisions/models/${rowId}`, { body: { enabled: true } });
+
+    const called: string[] = [];
+    globalThis.fetch = vi.fn((url: unknown) => {
+      called.push(String(url));
+      const body = String(url).includes('beatapi')
+        ? { model: '@cf/cloudflare/clef-flash', answers: TEST_ANSWERS, usage: { input_tokens: 7, output_tokens: 0 } }
+        : { success: true, result: { answers: TEST_ANSWERS, usage: { input_tokens: 42, output_tokens: 0 } } };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }));
+    }) as unknown as typeof fetch;
+
+    const res = await call(app, 'POST', `/api/decisions/models/${rowId}/test`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, provider: 'beatapi', model: '@cf/cloudflare/clef-flash' });
+    expect(called).toHaveLength(1);
+    expect(called[0]).toContain('beatapi');
+  });
+
+  it('refuses to test a model that is turned off, and an id that is not one', async () => {
+    const list = await call(app, 'GET', '/api/decisions/models');
+    const clef = list.body.find((m: { platform: string }) => m.platform === 'cloudflare');
+    await call(app, 'PATCH', `/api/decisions/models/${clef.id}`, { body: { enabled: false } });
+
+    const off = await call(app, 'POST', `/api/decisions/models/${clef.id}/test`);
+    expect(off.status).toBe(400);
+    expect(off.body.error.message).toBe('Decision model is unavailable or turned off');
+
+    const missing = await call(app, 'POST', '/api/decisions/models/999999/test');
+    expect(missing.status).toBe(404);
   });
 });
