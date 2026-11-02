@@ -45,6 +45,7 @@ export const keysRouter = Router();
 // Local fork: hide unconfigured key-required providers the operator judged
 // useless (dead sites, no free tier, or $1/month tiers). iFlytek Spark (xfyun)
 // is kept. Re-enable by removing the platform from this set.
+// (Upstream additionally unlists aclide; already included above.)
 const UNLISTED_PLATFORMS = new Set<string>([
   'aclide',
   'ainative',
@@ -76,6 +77,8 @@ const PLATFORMS = [
   'blockrun',
   'moondream',
   'jamai',
+  'nabh',
+  'novai',
   'beatapi',
   'apinex',
   'onomeo',
