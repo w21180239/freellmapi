@@ -53,6 +53,14 @@ describe('Model Provider Actions API', () => {
   });
 
   describe('POST /api/models', () => {
+    it('explains why an existing non-chat model cannot be tested as chat', async () => {
+      const row = getDb().prepare(`INSERT INTO models(platform,model_id,display_name,intelligence_rank,speed_rank,enabled)
+        VALUES ('speechify','legacy-speech','Speech',1,1,1)`).run();
+      const result = await post(app, `/api/models/${Number(row.lastInsertRowid)}/test`);
+      expect(result.body.success).toBe(false);
+      expect(result.body.error).toContain('does not support chat');
+    });
+
     it('rejects unauthenticated requests', async () => {
       const server = app.listen(0, '127.0.0.1');
       if (!server.listening) await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -135,6 +143,50 @@ describe('Model Provider Actions API', () => {
       expect(second.body.error.message).toContain('already exists');
     });
 
+    // #1741: search/speech/decision integrations are registered for key
+    // pooling and health, but their adapters refuse chat. A chat row would
+    // sit in the fallback chain burning a guaranteed failure per request.
+    it.each(['tavily', 'exa', 'firecrawl', 'linkup', 'parallel', 'keenable', 'serpsearch', 'brave'] as const)('rejects chat registration for search provider %s', async platform => {
+      const db = getDb();
+      const modelId = `${platform}-chat-${Date.now()}`;
+
+      const res = await post(app, '/api/models', {
+        platform,
+        modelId,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('does not support chat completions');
+
+      // No model row, no fallback entry, no profile membership.
+      const row = db.prepare('SELECT id FROM models WHERE platform = ? AND model_id = ?').get(platform, modelId);
+      expect(row).toBeUndefined();
+    });
+
+    it('rejects chat registration for speech and decision-only providers', async () => {
+      for (const platform of ['speechify', 'halx', 'aisense']) {
+        const res = await post(app, '/api/models', {
+          platform,
+          modelId: `${platform}-chat-${Date.now()}`,
+        });
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toContain('does not support chat completions');
+      }
+    });
+
+    it('allows BeatAPI chat registration after its chat adapter was added', async () => {
+      const modelId = `beatapi-chat-${Date.now()}`;
+      const res = await post(app, '/api/models', { platform: 'beatapi', modelId });
+
+      expect(getProvider('beatapi')!.supportsChat).toBe(true);
+      expect(res.status).toBe(201);
+      expect(res.body.model.modelId).toBe(modelId);
+      expect(getDb().prepare('SELECT platform FROM models WHERE id = ?').get(res.body.id))
+        .toEqual({ platform: 'beatapi' });
+      expect(getDb().prepare('SELECT enabled FROM fallback_config WHERE model_db_id = ?').get(res.body.id))
+        .toEqual({ enabled: 1 });
+    });
+
     it('creates custom model for custom provider with endpointScope', async () => {
       const db = getDb();
       const modelId = `relay-model-${Date.now()}`;
@@ -213,8 +265,9 @@ describe('Model Provider Actions API', () => {
 
   describe('POST /api/models/:id/test', () => {
     it('directs search-only entries to search testing without calling chat', async () => {
-      const created = await post(app, '/api/models', { platform: 'serpsearch', modelId: 'search-free' });
-      const result = await post(app, `/api/models/${created.body.id}/test`);
+      const row = getDb().prepare(`INSERT INTO models(platform,model_id,display_name,intelligence_rank,speed_rank,enabled)
+        VALUES ('serpsearch','search-free','Search',1,1,1)`).run();
+      const result = await post(app, `/api/models/${Number(row.lastInsertRowid)}/test`);
       expect(result.body.success).toBe(false);
       expect(result.body.error).toContain('Models → Search');
     });

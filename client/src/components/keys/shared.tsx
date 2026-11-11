@@ -26,8 +26,8 @@ export function GetKeyLink({ url }: { url: string }) {
 // one (#1331): the key field is optional, a blank submit stores a sentinel so
 // routing treats the platform as configured and calls go out anonymously, and
 // a real key is stored and sent like any other.
-// `hidden: true` providers stopped offering free API access: they are no longer
-// offered to new users (add/import/add-model pickers, setup checklist), but an
+// `hidden: true` providers have unavailable free signup/key creation: they are
+// not offered to new users (add/import/add-model pickers, setup checklist), but an
 // existing key still shows with its label so it can be edited or removed.
 export const PLATFORMS: { value: Platform; label: string; url: string; keyless?: boolean; hidden?: boolean }[] = [
   { value: 'aclide', label: 'ACLIDE (shared monthly credits)', url: 'https://aclide.com/en/dashboard/api-keys' },
@@ -47,7 +47,11 @@ export const PLATFORMS: { value: Platform; label: string; url: string; keyless?:
   { value: 'blockrun', label: 'BlockRun (zero-priced models)', url: 'https://user.blockrun.ai/dashboard/keys' },
   { value: 'moondream', label: 'Moondream ($5 shared monthly credits)', url: 'https://moondream.ai/c/cloud/api-keys' },
   { value: 'nabh', label: 'nabh.cloud (50 shared monthly credits)', url: 'https://app.nabh.cloud' },
-  { value: 'novai', label: 'NovAI (daily free video quota)', url: 'https://aiapi-pro.com' },
+  { value: 'novai', label: 'NovAI (daily free chat + video quota)', url: 'https://aiapi-pro.com' },
+  { value: 'varosity', label: 'Varosity (shared daily media credits)', url: 'https://varosity.ai/app/keys/api-keys' },
+  { value: 'rime', label: 'Rime (shared monthly TTS / transcription credits)', url: 'https://app.rime.ai' },
+  { value: 'freeinference', label: 'FreeInference (research; requests logged)', url: 'https://freeinference.org' },
+  { value: 'freemodel', label: 'FreeModel (monthly allowance; Telegram verification)', url: 'https://freemodel.in/dashboard' },
   { value: 'google', label: 'Google AI Studio', url: 'https://aistudio.google.com/apikey' },
   { value: 'groq', label: 'Groq', url: 'https://console.groq.com/keys' },
   { value: 'cerebras', label: 'Cerebras', url: 'https://cloud.cerebras.ai' },
@@ -99,6 +103,8 @@ export const PLATFORMS: { value: Platform; label: string; url: string; keyless?:
   // CATALOG-ANYAPI-SMOKE-2026-08-10 in the ops repo). No quota claim until
   // their free tier demonstrably works.
   { value: 'anyapi', label: 'AnyAPI (free key)', url: 'https://anyapi.ai' },
+  // Free: glm-4.7-flash $0/1M in+out (0 Credits) on Models UI, 2026-10-22.
+  { value: 'powertokens', label: 'PowerTokens (free: glm-4.7-flash)', url: 'https://www.powertokens.ai' },
   { value: 'modelscope', label: 'ModelScope (free key, needs Aliyun cn binding)', url: 'https://modelscope.cn/my/myaccesstoken' },
   { value: 'aihorde', label: 'AI Horde (no key needed, slow)', url: 'https://aihorde.net/register', keyless: true },
   // Chinese domestic providers. All four gate API access behind real-name
