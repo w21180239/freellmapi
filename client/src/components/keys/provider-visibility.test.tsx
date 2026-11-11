@@ -35,25 +35,27 @@ async function mount(component: ReactNode) {
   </QueryClientProvider></MemoryRouter>))
 }
 
-it.each(['aclide', 'waterfall'])('keeps %s metadata for saved keys but excludes it from all shared new-provider choices', platform => {
-  expect(PLATFORMS.find(p => p.value === platform)).toMatchObject({ hidden: true, label: expect.any(String), url: expect.any(String) })
-  expect(LISTED_PLATFORMS.some(p => p.value === platform)).toBe(false)
+// Local fork: aclide and waterfall stay pickable (server UNLISTED_PLATFORMS still hides them on the Keys list when unconfigured).
+it.each(['aclide', 'waterfall'])('keeps %s pickable for new keys in the local fork', platform => {
+  expect(PLATFORMS.find(p => p.value === platform)).toMatchObject({ label: expect.any(String), url: expect.any(String) })
+  expect(PLATFORMS.find(p => p.value === platform)?.hidden).toBeFalsy()
+  expect(LISTED_PLATFORMS.some(p => p.value === platform)).toBe(true)
   expect(LISTED_PLATFORMS.some(p => p.value === 'clod')).toBe(true)
 })
 
-it('omits Waterfall and ACLIDE from the add-key provider picker', async () => {
+it('lists Waterfall and ACLIDE in the add-key provider picker', async () => {
   await mount(<AddKeyForm onSuccess={() => {}} />)
   const options = [...container.querySelectorAll('option')].map(option => option.value)
   expect(options).toContain('groq')
   expect(options).toContain('rime')
-  expect(options).not.toContain('waterfall')
-  expect(options).not.toContain('aclide')
+  expect(options).toContain('waterfall')
+  expect(options).toContain('aclide')
 })
 
-it('omits Waterfall and ACLIDE from the add-model provider picker', async () => {
+it('lists Waterfall and ACLIDE in the add-model provider picker', async () => {
   await mount(<AddModelDialog open onOpenChange={() => {}} />)
   const options = [...container.querySelectorAll('#provider-platform-select option')].map(option => (option as HTMLOptionElement).value)
   expect(options).toContain('groq')
-  expect(options).not.toContain('waterfall')
-  expect(options).not.toContain('aclide')
+  expect(options).toContain('waterfall')
+  expect(options).toContain('aclide')
 })
