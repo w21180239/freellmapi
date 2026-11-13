@@ -49,6 +49,10 @@ it('lists Waterfall and ACLIDE in the add-key provider picker', async () => {
   expect(options).toContain('groq')
   expect(options).toContain('rime')
   expect(options).toContain('freetts')
+  expect(options).toContain('zro')
+  expect(PLATFORMS.find(p => p.value === 'zro')).toMatchObject({
+    label: 'Zro / MoonMath.ai (shared daily free usage)', url: 'https://zro.moonmath.ai/api-keys',
+  })
   expect(PLATFORMS.find(p => p.value === 'freetts')?.label).toMatch(/personal use only.*watermarked/i)
   expect(options).toContain('waterfall')
   expect(options).toContain('aclide')
