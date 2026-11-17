@@ -947,6 +947,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     const deleteMedia = db.prepare('DELETE FROM media_models WHERE id = ?');
     for (const c of mediaCandidates) {
       if (!MEDIA_PLATFORMS.has(c.platform)) continue; // not media-managed by this binary
+      if (!managed.has(c.platform)) continue; // local fork: self-registered until the catalog adopts the platform
       if (!inMediaCatalog.has(`${c.platform}:${c.model_id}`)) {
         deleteMedia.run(c.id);
         counts.removed++;
@@ -961,6 +962,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
         .all() as { id: number; platform: string; model_id: string }[];
       for (const c of videoCandidates) {
         if (!VIDEO_PLATFORMS.has(c.platform)) continue;
+        if (!managed.has(c.platform)) continue;
         if (!inVideoCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
@@ -978,6 +980,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       for (const c of searchCandidates) {
         if (isLocalCapability(c.meta_json)) continue;
         if (!SEARCH_ENGINE_PLATFORMS.has(c.platform)) continue;
+        if (!managed.has(c.platform)) continue;
         if (!inSearchCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
@@ -994,6 +997,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       for (const c of decisionCandidates) {
         if (isLocalCapability(c.meta_json)) continue;
         if (!CATALOG_DECISION_PLATFORMS.has(c.platform)) continue;
+        if (!managed.has(c.platform)) continue;
         if (!inDecisionCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
@@ -1010,6 +1014,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
         .all() as { id: number; platform: string; model_id: string }[];
       for (const c of sttCandidates) {
         if (!TRANSCRIPTION_PLATFORMS.has(c.platform)) continue;
+        if (!managed.has(c.platform)) continue;
         if (!inTranscriptionCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
@@ -1033,6 +1038,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       const deleteEmbedding = db.prepare('DELETE FROM embedding_models WHERE id = ?');
       for (const c of embeddingCandidates) {
         if (!EMBEDDING_PLATFORMS.has(c.platform)) continue;
+        if (!managed.has(c.platform)) continue;
         if (!inEmbeddingCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteEmbedding.run(c.id);
           counts.removed++;

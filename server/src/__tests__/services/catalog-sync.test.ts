@@ -808,12 +808,36 @@ describe('applyCatalog: searchEngines', () => {
     expect(searchRows()).toHaveLength(2);
   });
 
-  it('removes every engine when the registry is empty (a free catalog before an engine ages in)', () => {
-    const counts = applyCatalog(getDb(), searchCatalog([]));
+  // Local fork: rows on platforms the catalog does not manage are self-registered and kept.
+  it('keeps engines on platforms an empty registry does not manage', () => {
+    applyCatalog(getDb(), searchCatalog(searchRoster()));
+    applyCatalog(getDb(), searchCatalog([]));
+    expect(searchRows()).toHaveLength(2);
+  });
+
+  it('prunes engines once the catalog manages their platform', () => {
+    applyCatalog(getDb(), searchCatalog(searchRoster()));
+    const catalog = searchCatalog([]);
+    catalog.managedPlatforms = ['exa', 'tavily'];
+    const counts = applyCatalog(getDb(), catalog);
     expect(counts.removed).toBeGreaterThanOrEqual(2);
     expect(searchRows()).toEqual([]);
+  });
+
+  it('keeps self-registered media rows until the catalog adopts the platform', () => {
+    getDb().prepare(`
+      INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled)
+      VALUES ('typecast', 'ssfm-v31', 'SSFM v3.1', 'audio', 1, 1),
+             ('cartesia', 'ink-whisper', 'Ink Whisper', 'transcription', 1, 1)
+    `).run();
+    const rows = () => getDb().prepare("SELECT model_id FROM media_models WHERE platform IN ('typecast','cartesia') ORDER BY model_id").all();
     applyCatalog(getDb(), searchCatalog(searchRoster()));
-    expect(searchRows()).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
+    const adopted = searchCatalog(searchRoster());
+    adopted.managedPlatforms = ['typecast', 'cartesia'];
+    adopted.transcriptionModels = [];
+    applyCatalog(getDb(), adopted);
+    expect(rows()).toEqual([]);
   });
 
   it('keeps a local disable across catalog applies', () => {
