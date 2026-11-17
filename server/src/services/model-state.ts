@@ -1,7 +1,7 @@
 import type { Db } from '../db/types.js';
 import type { applyCatalog } from './catalog-sync.js';
 
-export type CatalogModelKind = 'chat' | 'media';
+export type CatalogModelKind = 'chat' | 'media' | 'embedding';
 
 export interface ModelOverridePatch {
   displayName?: string;
@@ -411,6 +411,14 @@ export function deleteTombstonedCatalogModels(db: Db): number {
         ON t.kind = 'media' AND t.platform = mm.platform AND t.model_id = mm.model_id
      WHERE t.source = 'user'
   `).all() as { id: number }[];
+  // Local fork: blocked embeddings go too (custom relay rows are never catalog-blocked).
+  const embeddingRows = db.prepare(`
+    SELECT e.id
+      FROM embedding_models e
+      JOIN catalog_model_tombstones t
+        ON t.kind = 'embedding' AND t.platform = e.platform AND t.model_id = e.model_id
+     WHERE t.source = 'user' AND e.platform != 'custom'
+  `).all() as { id: number }[];
 
   const deleteChatFallback = db.prepare('DELETE FROM fallback_config WHERE model_db_id = ?');
   const deleteChat = db.prepare('DELETE FROM models WHERE id = ?');
@@ -423,6 +431,8 @@ export function deleteTombstonedCatalogModels(db: Db): number {
   for (const row of mediaRows) {
     deleteMedia.run(row.id);
   }
+  const deleteEmbedding = db.prepare('DELETE FROM embedding_models WHERE id = ?');
+  for (const row of embeddingRows) deleteEmbedding.run(row.id);
 
-  return chatRows.length + mediaRows.length;
+  return chatRows.length + mediaRows.length + embeddingRows.length;
 }

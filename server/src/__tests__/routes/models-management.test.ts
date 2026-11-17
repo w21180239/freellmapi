@@ -375,6 +375,19 @@ describe('Model management API', () => {
     `).get(target.platform, target.model_id)).toBeDefined();
   });
 
+  it('blocks a deleted hand-added row on a built-in platform', async () => {
+    const id = Number(getDb().prepare(`
+      INSERT INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, enabled, source)
+      VALUES ('groq', 'hand-added-x', 'Hand added', 100, 100, 'Small', 1, 'user')
+    `).run().lastInsertRowid);
+    const { status, body } = await request(app, 'DELETE', `/api/models/${id}`);
+    expect(status).toBe(200);
+    expect(body).toEqual({ success: true, tombstoned: true });
+    expect(getDb().prepare(`
+      SELECT 1 FROM catalog_model_tombstones WHERE kind = 'chat' AND platform = 'groq' AND model_id = 'hand-added-x'
+    `).get()).toBeDefined();
+  });
+
   // The named-chain listing and routing tests below need a live groq key: a
   // chain is only "available" when one of its members can serve a request now.
   function seedGroqKey(): void {

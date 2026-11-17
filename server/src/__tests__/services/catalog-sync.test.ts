@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { initDb, getDb, setSetting, getSetting } from '../../db/index.js';
 import { applyCatalog, reapplyCachedCatalog, MIN_CATALOG_VERSION } from '../../services/catalog-sync.js';
 import { runMigrationsSync } from '../../db/migrate/runner.js';
+import { pinLocalModel } from '../../services/local-catalog-pins.js';
 import {
   getCatalogModelTombstone,
   recordCatalogModelTombstone,
@@ -808,36 +809,52 @@ describe('applyCatalog: searchEngines', () => {
     expect(searchRows()).toHaveLength(2);
   });
 
-  // Local fork: rows on platforms the catalog does not manage are self-registered and kept.
-  it('keeps engines on platforms an empty registry does not manage', () => {
+  it('removes every engine when the registry is empty (a free catalog before an engine ages in)', () => {
+    const counts = applyCatalog(getDb(), searchCatalog([]));
+    expect(counts.removed).toBeGreaterThanOrEqual(2);
+    expect(searchRows()).toEqual([]);
     applyCatalog(getDb(), searchCatalog(searchRoster()));
-    applyCatalog(getDb(), searchCatalog([]));
     expect(searchRows()).toHaveLength(2);
   });
 
-  it('prunes engines once the catalog manages their platform', () => {
-    applyCatalog(getDb(), searchCatalog(searchRoster()));
-    const catalog = searchCatalog([]);
-    catalog.managedPlatforms = ['exa', 'tavily'];
-    const counts = applyCatalog(getDb(), catalog);
-    expect(counts.removed).toBeGreaterThanOrEqual(2);
-    expect(searchRows()).toEqual([]);
-  });
-
-  it('keeps self-registered media rows until the catalog adopts the platform', () => {
+  // Local fork allowlist / blocklist on top of the catalog.
+  it('keeps locally pinned media rows the catalog does not list', () => {
     getDb().prepare(`
       INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled)
       VALUES ('typecast', 'ssfm-v31', 'SSFM v3.1', 'audio', 1, 1),
-             ('cartesia', 'ink-whisper', 'Ink Whisper', 'transcription', 1, 1)
+             ('cartesia', 'ink-whisper', 'Ink Whisper', 'transcription', 1, 1),
+             ('cartesia', 'ink-stale', 'Ink Stale', 'transcription', 1, 1)
     `).run();
-    const rows = () => getDb().prepare("SELECT model_id FROM media_models WHERE platform IN ('typecast','cartesia') ORDER BY model_id").all();
-    applyCatalog(getDb(), searchCatalog(searchRoster()));
-    expect(rows()).toHaveLength(2);
-    const adopted = searchCatalog(searchRoster());
-    adopted.managedPlatforms = ['typecast', 'cartesia'];
-    adopted.transcriptionModels = [];
-    applyCatalog(getDb(), adopted);
-    expect(rows()).toEqual([]);
+    pinLocalModel(getDb(), 'media', 'typecast', 'ssfm-v31');
+    pinLocalModel(getDb(), 'media', 'cartesia', 'ink-whisper');
+    const catalog = searchCatalog(searchRoster());
+    catalog.managedPlatforms = ['typecast', 'cartesia'];
+    catalog.transcriptionModels = [];
+    applyCatalog(getDb(), catalog);
+    expect(getDb().prepare("SELECT model_id FROM media_models WHERE platform IN ('typecast','cartesia') ORDER BY model_id").all())
+      .toEqual([{ model_id: 'ink-whisper' }, { model_id: 'ssfm-v31' }]);
+  });
+
+  it('keeps a pinned embedding and never re-adds a blocked one', () => {
+    const extra = (modelId: string): CatalogEmbedding => ({
+      family: modelId, platform: 'silvr', modelId, displayName: modelId, dimensions: 1536,
+      maxInputTokens: 8192, priority: 5, enabled: true, quotaLabel: '',
+    });
+    getDb().prepare(`INSERT INTO embedding_models (family, platform, model_id, display_name, dimensions, priority, enabled)
+      VALUES ('mine', 'silvr', 'mine', 'mine', 1536, 5, 1)`).run();
+    pinLocalModel(getDb(), 'embedding', 'silvr', 'mine');
+    recordCatalogModelTombstone(getDb(), 'embedding', 'silvr', 'bad');
+    const catalog = searchCatalog();
+    catalog.embeddings = [...existingAsCatalogEmbeddings().filter(e => e.platform !== 'silvr'), extra('bad'), extra('good')];
+    applyCatalog(getDb(), catalog);
+    expect(getDb().prepare("SELECT model_id FROM embedding_models WHERE platform = 'silvr' ORDER BY model_id").all())
+      .toEqual([{ model_id: 'good' }, { model_id: 'mine' }]);
+  });
+
+  it('removes an existing embedding once it is blocked', () => {
+    recordCatalogModelTombstone(getDb(), 'embedding', 'silvr', 'good');
+    applyCatalog(getDb(), searchCatalog());
+    expect(getDb().prepare("SELECT model_id FROM embedding_models WHERE platform = 'silvr' AND model_id = 'good'").get()).toBeUndefined();
   });
 
   it('keeps a local disable across catalog applies', () => {

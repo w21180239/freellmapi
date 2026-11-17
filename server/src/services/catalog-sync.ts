@@ -7,6 +7,7 @@ import { SEARCH_ENGINE_PLATFORMS, SEARCH_MODALITY } from './search.js';
 import { DECISION_MODALITY, CATALOG_DECISION_PLATFORMS } from './decision.js';
 import { isLocalCapability } from './local-capabilities.js';
 import { EMBEDDING_PLATFORMS } from './embeddings.js';
+import { loadLocalPins, pinKey } from './local-catalog-pins.js';
 import type { Platform } from '@freellmapi/shared/types.js';
 import type { Scheduler } from '../lib/scheduler.js';
 import {
@@ -797,6 +798,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
           counts.skippedUnknownPlatform++;
           continue;
         }
+        if (isCatalogModelTombstoned(db, 'embedding', m.platform, m.modelId)) continue;
         inEmbeddingCatalog.add(`${m.platform}:${m.modelId}`);
         const row = selectEmbedding.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
         const fields = {
@@ -909,6 +911,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // source='catalog' by now, so what is left is exactly the discovered
     // stopgap the catalog has superseded.
     const managed = catalogPlatforms(catalog);
+    const pins = loadLocalPins(db); // local fork: self-registered rows survive prunes
     const discoveredRows = db
       .prepare('SELECT id, platform FROM models WHERE source = ?')
       .all(DISCOVERED_MODEL_SOURCE) as { id: number; platform: string }[];
@@ -947,8 +950,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     const deleteMedia = db.prepare('DELETE FROM media_models WHERE id = ?');
     for (const c of mediaCandidates) {
       if (!MEDIA_PLATFORMS.has(c.platform)) continue; // not media-managed by this binary
-      if (!managed.has(c.platform)) continue; // local fork: self-registered until the catalog adopts the platform
-      if (!inMediaCatalog.has(`${c.platform}:${c.model_id}`)) {
+      if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inMediaCatalog.has(`${c.platform}:${c.model_id}`)) {
         deleteMedia.run(c.id);
         counts.removed++;
       }
@@ -962,8 +964,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
         .all() as { id: number; platform: string; model_id: string }[];
       for (const c of videoCandidates) {
         if (!VIDEO_PLATFORMS.has(c.platform)) continue;
-        if (!managed.has(c.platform)) continue;
-        if (!inVideoCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inVideoCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
         }
@@ -980,8 +981,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       for (const c of searchCandidates) {
         if (isLocalCapability(c.meta_json)) continue;
         if (!SEARCH_ENGINE_PLATFORMS.has(c.platform)) continue;
-        if (!managed.has(c.platform)) continue;
-        if (!inSearchCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inSearchCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
         }
@@ -997,8 +997,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       for (const c of decisionCandidates) {
         if (isLocalCapability(c.meta_json)) continue;
         if (!CATALOG_DECISION_PLATFORMS.has(c.platform)) continue;
-        if (!managed.has(c.platform)) continue;
-        if (!inDecisionCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inDecisionCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
         }
@@ -1014,8 +1013,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
         .all() as { id: number; platform: string; model_id: string }[];
       for (const c of sttCandidates) {
         if (!TRANSCRIPTION_PLATFORMS.has(c.platform)) continue;
-        if (!managed.has(c.platform)) continue;
-        if (!inTranscriptionCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inTranscriptionCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteMedia.run(c.id);
           counts.removed++;
         }
@@ -1038,8 +1036,7 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       const deleteEmbedding = db.prepare('DELETE FROM embedding_models WHERE id = ?');
       for (const c of embeddingCandidates) {
         if (!EMBEDDING_PLATFORMS.has(c.platform)) continue;
-        if (!managed.has(c.platform)) continue;
-        if (!inEmbeddingCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!pins.has(pinKey('embedding', c.platform, c.model_id)) && !inEmbeddingCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteEmbedding.run(c.id);
           counts.removed++;
         }

@@ -364,8 +364,11 @@ modelsRouter.delete('/:id', (req: Request, res: Response) => {
     return;
   }
 
+  // Local fork: hand-added rows on built-in platforms are blocked on delete too,
+  // so a catalog that later ships the same id cannot bring them back.
+  const blocked = row.platform !== 'custom' && row.key_id == null;
   const remove = db.transaction(() => {
-    if (isCatalogManagedModel(row)) {
+    if (blocked) {
       recordCatalogModelTombstone(db, 'chat', row.platform, row.model_id);
     } else if (row.platform === 'custom') {
       // #926: same "keep it deleted" contract for custom relay models — the
@@ -380,7 +383,7 @@ modelsRouter.delete('/:id', (req: Request, res: Response) => {
   });
   remove();
 
-  res.json({ success: true, tombstoned: isCatalogManagedModel(row) });
+  res.json({ success: true, tombstoned: blocked });
 });
 
 modelsRouter.post('/:id/test', async (req: Request, res: Response) => {
