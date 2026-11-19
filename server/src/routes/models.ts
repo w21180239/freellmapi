@@ -26,6 +26,7 @@ import { recordRequest, recordTokens } from '../services/ratelimit.js';
 import { isSearchPlatform } from '../lib/search-platforms.js';
 import { recordMonthlyUsage } from '../services/key-budget.js';
 import { contentToString } from '../lib/content.js';
+import { addOwnershipRoutes } from './ownership-routes.js';
 
 export const modelsRouter = Router();
 
@@ -385,6 +386,9 @@ modelsRouter.delete('/:id', (req: Request, res: Response) => {
 
   res.json({ success: true, tombstoned: blocked });
 });
+
+// Claim (catalog -> user) and release (user -> catalog) for chat rows.
+addOwnershipRoutes(modelsRouter, 'chat');
 
 modelsRouter.post('/:id/test', async (req: Request, res: Response) => {
   const id = Number(req.params.id);

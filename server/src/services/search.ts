@@ -854,6 +854,16 @@ export function listSearchEngines(): SearchEngineView[] {
   });
 }
 
+/** Drop one engine from the dashboard's local order so its column priority
+ *  applies again. */
+export function clearSearchPriorityOverride(platform: string, engineId: string): void {
+  const overrides = readPriorityOverrides();
+  const key = engineKey({ platform, model_id: engineId });
+  if (!(key in overrides)) return;
+  delete overrides[key];
+  setSetting(PRIORITY_OVERRIDES_SETTING, JSON.stringify(overrides));
+}
+
 /** Turn an engine on/off and/or move it to `priority` (0 = first/default).
  *  A move renumbers every engine 0..n-1 in the new order and stores that as
  *  the local order. Returns false when the id is not a search engine. */

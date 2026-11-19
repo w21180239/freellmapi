@@ -155,8 +155,8 @@ export function customModelDeleteKey(model: ApiKeyModel): string {
 
 export function customModelDeletePath(model: ApiKeyModel): string {
   if (model.kind === 'chat') return `/api/models/custom/${model.id}`
-  if (model.kind === 'embedding') return `/api/embeddings/custom/${model.id}`
-  return `/api/media/custom/${model.id}`
+  if (model.kind === 'embedding') return `/api/embeddings/${model.id}`
+  return `/api/media/${model.id}`
 }
 
 export const statusDot: Record<string, string> = {

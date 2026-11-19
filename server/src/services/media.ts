@@ -71,6 +71,7 @@ export interface MediaModelRow {
   quota_label: string;
   key_id: number | null;
   meta_json: string | null;
+  source: string;
 }
 
 export class MediaError extends Error {

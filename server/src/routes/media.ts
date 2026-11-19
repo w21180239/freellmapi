@@ -3,10 +3,11 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import { maskKey } from '../lib/crypto.js';
-import { deleteUnusedCustomEndpointKey } from '../lib/custom-provider-cleanup.js';
 import { resolveCustomEndpointKey } from '../services/custom-endpoint.js';
 import { registerCustomMediaModel } from '../services/custom-media-register.js';
 import { listAllMediaModels } from '../services/media.js';
+import { addMediaModel, blockMediaModel, MEDIA_ADD_MODALITIES, patchMediaModel } from '../services/model-ownership.js';
+import { addOwnershipRoutes, issuesMessage, parseRowId, withOwnership } from './ownership-routes.js';
 
 export const mediaRouter = Router();
 
@@ -39,6 +40,7 @@ mediaRouter.get('/', (_req: Request, res: Response) => {
         ? (customKeyIds.has(r.key_id) ? 1 : 0)
         : keyCounts.get(r.platform) ?? 0,
       isCustom: r.platform === 'custom',
+      source: r.source,
     })),
   });
 });
@@ -176,44 +178,57 @@ mediaRouter.post('/custom', (req: Request, res: Response) => {
   });
 });
 
-const updateSchema = z.object({ enabled: z.boolean() });
+const metaSchema = z.record(z.string(), z.unknown()).nullable();
 
-mediaRouter.put('/:id', (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: { message: 'Invalid id' } });
-    return;
-  }
-  const parsed = updateSchema.safeParse(req.body);
+const addSchema = z.object({
+  platform: z.string().trim().min(1),
+  modelId: z.string().trim().min(1).max(200),
+  modality: z.enum(MEDIA_ADD_MODALITIES),
+  displayName: z.string().trim().min(1).max(200).optional(),
+  priority: z.number().int().min(0).optional(),
+  quotaLabel: z.string().trim().max(200).optional(),
+  meta: metaSchema.optional(),
+}).strict();
+
+// Add a model of any media modality on a built-in platform. The row is the
+// owner's (source='user'): catalog sync never updates or prunes it.
+mediaRouter.post('/', (req: Request, res: Response) => {
+  const parsed = addSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: { message: 'Invalid request body' } });
+    res.status(400).json({ error: { message: issuesMessage(parsed.error) } });
     return;
   }
-  const info = getDb().prepare('UPDATE media_models SET enabled = ? WHERE id = ?').run(parsed.data.enabled ? 1 : 0, id);
-  if (info.changes === 0) {
-    res.status(404).json({ error: { message: `Unknown media model ${id}` } });
-    return;
-  }
-  res.json({ success: true });
+  let id = 0;
+  if (!withOwnership(res, () => { id = addMediaModel(getDb(), parsed.data); })) return;
+  res.status(201).json({ success: true, id, platform: parsed.data.platform, modelId: parsed.data.modelId, modality: parsed.data.modality, source: 'user' });
 });
 
-mediaRouter.delete('/custom/:id', (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: { message: 'Invalid id' } });
-    return;
-  }
+const patchSchema = z.object({
+  enabled: z.boolean().optional(),
+  priority: z.number().int().min(0).optional(),
+  displayName: z.string().trim().min(1).max(200).optional(),
+  quotaLabel: z.string().trim().max(200).optional(),
+  meta: metaSchema.optional(),
+}).strict().refine(p => Object.keys(p).length > 0, { message: 'No fields provided' });
 
-  const db = getDb();
-  const row = db.prepare("SELECT key_id FROM media_models WHERE id = ? AND platform = 'custom'").get(id) as { key_id: number | null } | undefined;
-  if (!row) {
-    res.status(404).json({ error: { message: `Unknown custom media model ${id}` } });
+// Content edits (anything but enabled) claim a catalog row.
+mediaRouter.patch('/:id', (req: Request, res: Response) => {
+  const id = parseRowId(req, res);
+  if (id == null) return;
+  const parsed = patchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: issuesMessage(parsed.error) } });
     return;
   }
-  const remove = db.transaction(() => {
-    db.prepare("DELETE FROM media_models WHERE id = ? AND platform = 'custom'").run(id);
-    deleteUnusedCustomEndpointKey(db, row.key_id);
-  });
-  remove();
-  res.json({ success: true });
+  if (withOwnership(res, () => patchMediaModel(getDb(), id, parsed.data))) res.json({ success: true, id });
 });
+
+// Block: built-in rows get a user tombstone, custom rows release their key.
+mediaRouter.delete('/:id', (req: Request, res: Response) => {
+  const id = parseRowId(req, res);
+  if (id == null) return;
+  let result = { tombstoned: false };
+  if (withOwnership(res, () => { result = blockMediaModel(getDb(), id); })) res.json({ success: true, ...result });
+});
+
+addOwnershipRoutes(mediaRouter, 'media');

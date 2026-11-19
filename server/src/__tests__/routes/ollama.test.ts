@@ -267,7 +267,9 @@ describe('Ollama emulation', () => {
     const dashboard = await request(app, 'POST', '/api/embeddings', {}, {
       Authorization: `Bearer ${dashboardToken}`,
     });
-    expect(dashboard.status).toBe(404);
+    // The dashboard's own add-embedding validation answers, not Ollama's.
+    expect(dashboard.status).toBe(400);
+    expect(dashboard.text).toContain('dimensions');
     expect(dashboard.text).not.toContain('invalid request');
   });
 });

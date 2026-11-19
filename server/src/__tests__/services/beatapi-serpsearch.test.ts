@@ -157,8 +157,8 @@ it('loads new modalities only from the catalog, idempotently preserving premiumS
 
 it('retains locally added capabilities across catalog updates', () => {
   const db = getDb();
-  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, meta_json) VALUES ('beatapi', 'jev-1.14-free', 'Jev', 'decision', 1, ?)").run(JSON.stringify({ userAdded: true }));
-  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, meta_json) VALUES ('beatapi', 'beatapi-search', 'BeatAPI Search', 'search', 0, ?)").run(JSON.stringify({ userAdded: true }));
+  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, source) VALUES ('beatapi', 'jev-1.14-free', 'Jev', 'decision', 1, 'user')").run();
+  db.prepare("INSERT INTO media_models (platform, model_id, display_name, modality, enabled, source) VALUES ('beatapi', 'beatapi-search', 'BeatAPI Search', 'search', 0, 'user')").run();
   applyCatalog(db, { version: '2099.01.01', generatedAt: '2026-10-18T12:00:00.000Z', tier: 'live', models: [], quirks: [],
     decisionModels: [{ platform: 'beatapi', modelId: 'jev-1.14-free', displayName: 'Catalog Jev', priority: 0, enabled: false }],
     searchEngines: [{ platform: 'beatapi', engineId: 'beatapi-search', displayName: 'Catalog Search', priority: 0, enabled: true }] });

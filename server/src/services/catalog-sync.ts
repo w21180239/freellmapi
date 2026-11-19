@@ -5,9 +5,7 @@ import { hasProvider } from '../providers/index.js';
 import { MEDIA_PLATFORMS, TRANSCRIPTION_PLATFORMS, VIDEO_PLATFORMS } from './media.js';
 import { SEARCH_ENGINE_PLATFORMS, SEARCH_MODALITY } from './search.js';
 import { DECISION_MODALITY, CATALOG_DECISION_PLATFORMS } from './decision.js';
-import { isLocalCapability } from './local-capabilities.js';
 import { EMBEDDING_PLATFORMS } from './embeddings.js';
-import { loadLocalPins, pinKey } from './local-catalog-pins.js';
 import type { Platform } from '@freellmapi/shared/types.js';
 import type { Scheduler } from '../lib/scheduler.js';
 import {
@@ -68,6 +66,7 @@ const SETTING_APPLIED_TIER = 'catalog_applied_tier';
 const SETTING_APPLIED_JSON = 'catalog_applied_json';
 const SETTING_LAST_SYNC_MS = 'catalog_last_sync_ms';
 const SETTING_LAST_ERROR = 'catalog_last_error';
+const SETTING_OVERLAP = 'catalog_overlap';
 
 export function catalogBaseUrl(): string {
   return (process.env.CATALOG_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
@@ -481,6 +480,99 @@ export function appliedCatalogPlatforms(db: Db): Set<string> {
   return platforms;
 }
 
+export type OwnedModelKind = 'chat' | 'media' | 'embedding';
+
+/** A source='user' row the applied catalog also lists, with the fields where
+ *  the catalog's entry differs from the local row. */
+export interface CatalogOverlapEntry {
+  kind: OwnedModelKind;
+  table: 'models' | 'media_models' | 'embedding_models';
+  id: number;
+  platform: string;
+  modelId: string;
+  modality: string;
+  differs: Record<string, { local: unknown; catalog: unknown }>;
+}
+
+interface MediaFields {
+  displayName: string;
+  modality: string;
+  priority: number;
+  quotaLabel: string;
+  metaJson: string | null;
+}
+
+interface MediaRow {
+  id: number;
+  enabled: number;
+  source: string;
+  display_name: string;
+  modality: string;
+  priority: number;
+  quota_label: string;
+  meta_json: string | null;
+}
+
+interface EmbeddingRow {
+  id: number;
+  enabled: number;
+  source: string;
+  family: string;
+  display_name: string;
+  dimensions: number;
+  max_input_tokens: number | null;
+  priority: number;
+  quota_label: string;
+}
+
+const OVERLAP_TABLES = { chat: 'models', media: 'media_models', embedding: 'embedding_models' } as const;
+
+function parseMeta(raw: string | null): unknown {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return raw; }
+}
+
+function overlapEntry(
+  kind: OwnedModelKind, id: number, platform: string, modelId: string, modality: string,
+  local: Record<string, unknown>, fromCatalog: Record<string, unknown>,
+): CatalogOverlapEntry {
+  const differs: CatalogOverlapEntry['differs'] = {};
+  for (const [field, value] of Object.entries(fromCatalog)) {
+    const mine = local[field] ?? null;
+    if (JSON.stringify(mine) !== JSON.stringify(value ?? null)) differs[field] = { local: mine, catalog: value ?? null };
+  }
+  return { kind, table: OVERLAP_TABLES[kind], id, platform, modelId, modality, differs };
+}
+
+/** Overlap recorded by the last catalog apply. */
+export function getCatalogOverlap(): CatalogOverlapEntry[] {
+  try {
+    const parsed = JSON.parse(getSetting(SETTING_OVERLAP) ?? '[]') as unknown;
+    return Array.isArray(parsed) ? parsed as CatalogOverlapEntry[] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** True when the cached applied catalog lists (platform, modelId) for `kind`,
+ *  i.e. a released row would be kept and refreshed instead of pruned. */
+export function appliedCatalogListsModel(db: Db, kind: OwnedModelKind, platform: string, modelId: string): boolean {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(SETTING_APPLIED_JSON) as { value: string } | undefined;
+  if (!row) return false;
+  let catalog: Catalog;
+  try { catalog = JSON.parse(row.value) as Catalog; } catch { return false; }
+  const is = (p: string, id: string) => p === platform && id === modelId;
+  if (kind === 'chat') {
+    return (catalog.models ?? []).some(m => is(m.platform, m.modelId) && !MEDIA_MODALITIES.has(m.modality ?? 'text'));
+  }
+  if (kind === 'embedding') return (catalog.embeddings ?? []).some(m => is(m.platform, m.modelId));
+  return (catalog.models ?? []).some(m => is(m.platform, m.modelId) && MEDIA_MODALITIES.has(m.modality ?? 'text'))
+    || (catalog.videoModels ?? []).some(m => is(m.platform, m.modelId))
+    || (catalog.searchEngines ?? []).some(e => is(e.platform, e.engineId))
+    || (catalog.decisionModels ?? []).some(m => is(m.platform, m.modelId))
+    || (catalog.transcriptionModels ?? []).some(m => is(m.platform, m.modelId));
+}
+
 export function applyCatalog(db: Db, catalog: Catalog): NonNullable<SyncResult['counts']> {
   // One transaction for the whole apply (#1047): the body runs hundreds of
   // individual statements, and under WAL each one outside a transaction is its
@@ -531,7 +623,12 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
   `);
 
   // Generative-media models go to their own table (never the chat router's pool).
-  const selectMedia = db.prepare('SELECT id, enabled, meta_json FROM media_models WHERE platform = ? AND model_id = ?');
+  // Every media modality (image, audio, video, search, decision,
+  // transcription) shares this table and one ownership rule, see applyMedia.
+  const selectMedia = db.prepare(`
+    SELECT id, enabled, source, display_name, modality, priority, quota_label, meta_json
+      FROM media_models WHERE platform = ? AND model_id = ?
+  `);
   const updateMedia = db.prepare(`
     UPDATE media_models SET
       display_name = @displayName, modality = @modality, priority = @priority,
@@ -542,21 +639,10 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled, quota_label, meta_json)
     VALUES (@platform, @modelId, @displayName, @modality, @priority, @enabled, @quotaLabel, @metaJson)
   `);
-  // Transcription rows share media_models but carry adapter metadata in
-  // meta_json (subtitle capability, upload ceiling, request flavor).
-  const updateTranscription = db.prepare(`
-    UPDATE media_models SET
-      display_name = @displayName, modality = 'transcription', priority = @priority,
-      quota_label = @quotaLabel, enabled = @enabled, meta_json = @metaJson
-    WHERE id = @id
+  const selectEmbedding = db.prepare(`
+    SELECT id, enabled, source, family, display_name, dimensions, max_input_tokens, priority, quota_label
+      FROM embedding_models WHERE platform = ? AND model_id = ?
   `);
-  const insertTranscription = db.prepare(`
-    INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled, quota_label, meta_json)
-    VALUES (@platform, @modelId, @displayName, 'transcription', @priority, @enabled, @quotaLabel, @metaJson)
-  `);
-  const selectEmbedding = db.prepare(
-    'SELECT id, enabled FROM embedding_models WHERE platform = ? AND model_id = ?',
-  );
   const updateEmbedding = db.prepare(`
     UPDATE embedding_models SET
       family = @family, display_name = @displayName, dimensions = @dimensions,
@@ -572,6 +658,62 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       (@family, @platform, @modelId, @displayName, @dimensions, @maxInputTokens,
        @priority, @enabled, @quotaLabel)
   `);
+  const deleteMedia = db.prepare('DELETE FROM media_models WHERE id = ?');
+
+  // Ownership rule shared by every table: a source='user' row is the owner's
+  // conclusion, so the catalog never updates or prunes it. When the catalog
+  // also lists it, the differences are recorded for GET /api/catalog/overlap.
+  const overlap: CatalogOverlapEntry[] = [];
+
+  const applyMedia = (
+    platforms: Set<string>,
+    seen: Set<string>,
+    entry: { platform: string; modelId: string; enabled: boolean },
+    fields: MediaFields,
+  ): void => {
+    if (!platforms.has(entry.platform)) {
+      counts.skippedUnknownPlatform++;
+      return;
+    }
+    if (isCatalogModelTombstoned(db, 'media', entry.platform, entry.modelId)) return;
+    seen.add(`${entry.platform}:${entry.modelId}`);
+    const row = selectMedia.get(entry.platform, entry.modelId) as MediaRow | undefined;
+    if (row?.source === 'user') {
+      overlap.push(overlapEntry('media', row.id, entry.platform, entry.modelId, fields.modality, {
+        enabled: row.enabled === 1, displayName: row.display_name, modality: row.modality,
+        priority: row.priority, quotaLabel: row.quota_label, meta: parseMeta(row.meta_json),
+      }, {
+        enabled: entry.enabled, displayName: fields.displayName, modality: fields.modality,
+        priority: fields.priority, quotaLabel: fields.quotaLabel, meta: parseMeta(fields.metaJson),
+      }));
+      return;
+    }
+    if (row) {
+      const enabled = entry.enabled ? row.enabled : 0; // catalog disable wins; local disable wins
+      updateMedia.run({ ...fields, id: row.id, enabled });
+      counts.updated++;
+    } else {
+      insertMedia.run({ ...fields, platform: entry.platform, modelId: entry.modelId, enabled: entry.enabled ? 1 : 0 });
+      counts.inserted++;
+    }
+  };
+
+  // Prune catalog-owned media rows of the given modalities that this catalog
+  // no longer lists. Platforms outside `platforms` are not managed by this
+  // binary for those modalities and stay.
+  const pruneMedia = (modalities: string[], platforms: Set<string>, seen: Set<string>): void => {
+    const rows = db.prepare(`
+      SELECT id, platform, model_id FROM media_models
+       WHERE source = 'catalog' AND modality IN (${modalities.map(() => '?').join(', ')})
+    `).all(...modalities) as { id: number; platform: string; model_id: string }[];
+    for (const c of rows) {
+      if (!platforms.has(c.platform)) continue;
+      if (!seen.has(`${c.platform}:${c.model_id}`)) {
+        deleteMedia.run(c.id);
+        counts.removed++;
+      }
+    }
+  };
 
   const apply = db.transaction(() => {
     const inCatalog = new Set<string>();
@@ -593,32 +735,17 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       const modality = m.modality ?? 'text';
       if (modality === 'audio' && dedicatedTranscriptions.has(`${m.platform}:${m.modelId}`)) continue;
       if (MEDIA_MODALITIES.has(modality)) {
-        if (!MEDIA_PLATFORMS.has(m.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'media', m.platform, m.modelId)) continue;
-        inMediaCatalog.add(`${m.platform}:${m.modelId}`);
-        const mrow = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
         // Generative-media meta carries only the adapter request flavor today;
         // a row without one stores NULL so the adapter keeps its default.
         const mmeta: Record<string, unknown> = {};
         if (typeof m.requestStyle === 'string') mmeta.requestStyle = m.requestStyle;
-        const mfields = {
+        applyMedia(MEDIA_PLATFORMS, inMediaCatalog, m, {
           displayName: m.displayName,
           modality,
           priority: m.intelligenceRank ?? 0,
           quotaLabel: m.mediaNote ?? '',
           metaJson: Object.keys(mmeta).length > 0 ? JSON.stringify(mmeta) : null,
-        };
-        if (mrow) {
-          const enabled = m.enabled ? mrow.enabled : 0; // catalog disable wins; local disable wins
-          updateMedia.run({ ...mfields, id: mrow.id, enabled });
-          counts.updated++;
-        } else {
-          insertMedia.run({ ...mfields, platform: m.platform, modelId: m.modelId, enabled: m.enabled ? 1 : 0 });
-          counts.inserted++;
-        }
+        });
         continue;
       }
 
@@ -647,7 +774,23 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       // neither clobbers its metadata nor adopts it (same spirit as the
       // never-touch rule for custom-provider models). The row also survives
       // the prune below because the delete pass only considers source='catalog'.
-      if (row && row.source === 'user') continue;
+      if (row && row.source === 'user') {
+        const local = db.prepare('SELECT * FROM models WHERE id = ?').get(row.id) as Record<string, unknown>;
+        overlap.push(overlapEntry('chat', row.id, m.platform, m.modelId, 'chat', {
+          enabled: local.enabled === 1, displayName: local.display_name,
+          intelligenceRank: local.intelligence_rank, speedRank: local.speed_rank, sizeLabel: local.size_label,
+          limits: { rpm: local.rpm_limit, rpd: local.rpd_limit, tpm: local.tpm_limit, tpd: local.tpd_limit },
+          monthlyTokenBudget: local.monthly_token_budget, contextWindow: local.context_window,
+          supportsVision: local.supports_vision === 1, supportsTools: local.supports_tools === 1,
+        }, {
+          enabled: m.enabled, displayName: m.displayName,
+          intelligenceRank: m.intelligenceRank, speedRank: m.speedRank, sizeLabel: m.sizeLabel,
+          limits: { rpm: m.limits.rpm, rpd: m.limits.rpd, tpm: m.limits.tpm, tpd: m.limits.tpd },
+          monthlyTokenBudget: m.monthlyTokenBudget, contextWindow: m.contextWindow,
+          supportsVision: m.supportsVision, supportsTools: m.supportsTools,
+        }));
+        continue;
+      }
       // #1348: a DISCOVERED row is the opposite case. Discovery only fills a
       // gap the catalog left, so once the catalog lists the model it takes the
       // row over: the metadata below replaces discovery's guesses and the row
@@ -686,143 +829,87 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // Video models use their own optional full snapshot. Older catalogs omit
     // the key and leave existing video rows untouched; older binaries ignore
     // the key entirely, which is why these rows must not live in models[].
-    if (catalog.videoModels) {
-      for (const m of catalog.videoModels) {
-        if (!VIDEO_PLATFORMS.has(m.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'media', m.platform, m.modelId)) continue;
-        inVideoCatalog.add(`${m.platform}:${m.modelId}`);
-        const meta = typeof m.providerModelId === 'string'
-          ? JSON.stringify({ providerModelId: m.providerModelId })
-          : null;
-        const fields = {
-          displayName: m.displayName,
-          modality: 'video',
-          priority: m.priority,
-          quotaLabel: m.quotaLabel ?? '',
-          metaJson: meta,
-        };
-        const row = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
-        if (row) {
-          const enabled = m.enabled ? row.enabled : 0;
-          updateMedia.run({ ...fields, id: row.id, enabled });
-          counts.updated++;
-        } else {
-          insertMedia.run({ ...fields, platform: m.platform, modelId: m.modelId, enabled: m.enabled ? 1 : 0 });
-          counts.inserted++;
-        }
-      }
+    for (const m of catalog.videoModels ?? []) {
+      applyMedia(VIDEO_PLATFORMS, inVideoCatalog, m, {
+        displayName: m.displayName,
+        modality: 'video',
+        priority: m.priority,
+        quotaLabel: m.quotaLabel ?? '',
+        metaJson: typeof m.providerModelId === 'string' ? JSON.stringify({ providerModelId: m.providerModelId }) : null,
+      });
     }
 
     // Search engines (#1174): their own optional full snapshot, exactly like
     // video. A catalog without the key leaves existing engine rows alone.
-    // A local disable survives (catalog enable never overrides it) and the
-    // dashboard's local engine order lives in settings, not in `priority`.
-    if (catalog.searchEngines) {
-      for (const e of catalog.searchEngines) {
-        if (!SEARCH_ENGINE_PLATFORMS.has(e.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'media', e.platform, e.engineId)) continue;
-        inSearchCatalog.add(`${e.platform}:${e.engineId}`);
-        const meta: Record<string, unknown> = {};
-        if (e.creditsPerQuery !== undefined) meta.creditsPerQuery = e.creditsPerQuery;
-        if (e.features && typeof e.features === 'object') {
-          meta.features = {
-            ...(typeof e.features.news === 'boolean' ? { news: e.features.news } : {}),
-            ...(typeof e.features.answer === 'boolean' ? { answer: e.features.answer } : {}),
-            ...(typeof e.features.fullContent === 'boolean' ? { fullContent: e.features.fullContent } : {}),
-          };
-        }
-        if (typeof e.premiumSince === 'string') meta.premiumSince = e.premiumSince;
-        const fields = {
-          displayName: e.displayName,
-          modality: SEARCH_MODALITY,
-          priority: e.priority,
-          quotaLabel: e.quotaLabel ?? '',
-          metaJson: JSON.stringify(meta),
+    // The dashboard's local engine order lives in settings, not in `priority`.
+    for (const e of catalog.searchEngines ?? []) {
+      const meta: Record<string, unknown> = {};
+      if (e.creditsPerQuery !== undefined) meta.creditsPerQuery = e.creditsPerQuery;
+      if (e.features && typeof e.features === 'object') {
+        meta.features = {
+          ...(typeof e.features.news === 'boolean' ? { news: e.features.news } : {}),
+          ...(typeof e.features.answer === 'boolean' ? { answer: e.features.answer } : {}),
+          ...(typeof e.features.fullContent === 'boolean' ? { fullContent: e.features.fullContent } : {}),
         };
-        const row = selectMedia.get(e.platform, e.engineId) as { id: number; enabled: number; meta_json: string | null } | undefined;
-        if (row) {
-          if (isLocalCapability(row.meta_json)) continue;
-          const enabled = e.enabled ? row.enabled : 0;
-          updateMedia.run({ ...fields, id: row.id, enabled });
-          counts.updated++;
-        } else {
-          insertMedia.run({ ...fields, platform: e.platform, modelId: e.engineId, enabled: e.enabled ? 1 : 0 });
-          counts.inserted++;
-        }
       }
+      if (typeof e.premiumSince === 'string') meta.premiumSince = e.premiumSince;
+      applyMedia(SEARCH_ENGINE_PLATFORMS, inSearchCatalog, { platform: e.platform, modelId: e.engineId, enabled: e.enabled }, {
+        displayName: e.displayName,
+        modality: SEARCH_MODALITY,
+        priority: e.priority,
+        quotaLabel: e.quotaLabel ?? '',
+        metaJson: JSON.stringify(meta),
+      });
     }
 
     // Decision models: their own optional full snapshot, like search engines.
     // They ride on the platform's existing keys and never enter chat routing.
-    if (catalog.decisionModels) {
-      for (const m of catalog.decisionModels) {
-        if (!CATALOG_DECISION_PLATFORMS.has(m.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'media', m.platform, m.modelId)) continue;
-        inDecisionCatalog.add(`${m.platform}:${m.modelId}`);
-        const meta: Record<string, unknown> = {};
-        if (typeof m.contextWindow === 'number') meta.contextWindow = m.contextWindow;
-        if (typeof m.premiumSince === 'string') meta.premiumSince = m.premiumSince;
-        const fields = {
-          displayName: m.displayName,
-          modality: DECISION_MODALITY,
-          priority: m.priority,
-          quotaLabel: m.quotaLabel ?? '',
-          metaJson: JSON.stringify(meta),
-        };
-        const row = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number; meta_json: string | null } | undefined;
-        if (row) {
-          if (isLocalCapability(row.meta_json)) continue;
-          const enabled = m.enabled ? row.enabled : 0;
-          updateMedia.run({ ...fields, id: row.id, enabled });
-          counts.updated++;
-        } else {
-          insertMedia.run({ ...fields, platform: m.platform, modelId: m.modelId, enabled: m.enabled ? 1 : 0 });
-          counts.inserted++;
-        }
-      }
+    for (const m of catalog.decisionModels ?? []) {
+      const meta: Record<string, unknown> = {};
+      if (typeof m.contextWindow === 'number') meta.contextWindow = m.contextWindow;
+      if (typeof m.premiumSince === 'string') meta.premiumSince = m.premiumSince;
+      applyMedia(CATALOG_DECISION_PLATFORMS, inDecisionCatalog, m, {
+        displayName: m.displayName,
+        modality: DECISION_MODALITY,
+        priority: m.priority,
+        quotaLabel: m.quotaLabel ?? '',
+        metaJson: JSON.stringify(meta),
+      });
     }
 
     // Embeddings are their own full snapshot. Older catalogs omit this field;
     // in that case retain the app's bundled embedding baseline untouched.
-    if (catalog.embeddings) {
-      for (const m of catalog.embeddings) {
-        if (!EMBEDDING_PLATFORMS.has(m.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'embedding', m.platform, m.modelId)) continue;
-        inEmbeddingCatalog.add(`${m.platform}:${m.modelId}`);
-        const row = selectEmbedding.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
-        const fields = {
-          family: m.family,
-          displayName: m.displayName,
-          dimensions: m.dimensions,
-          maxInputTokens: m.maxInputTokens,
-          priority: m.priority,
-          quotaLabel: m.quotaLabel,
-        };
-        if (row) {
-          const enabled = m.enabled ? row.enabled : 0; // catalog and local disables both win
-          updateEmbedding.run({ ...fields, id: row.id, enabled });
-          counts.updated++;
-        } else {
-          insertEmbedding.run({
-            ...fields,
-            platform: m.platform,
-            modelId: m.modelId,
-            enabled: m.enabled ? 1 : 0,
-          });
-          counts.inserted++;
-        }
+    for (const m of catalog.embeddings ?? []) {
+      if (!EMBEDDING_PLATFORMS.has(m.platform)) {
+        counts.skippedUnknownPlatform++;
+        continue;
+      }
+      if (isCatalogModelTombstoned(db, 'embedding', m.platform, m.modelId)) continue;
+      inEmbeddingCatalog.add(`${m.platform}:${m.modelId}`);
+      const row = selectEmbedding.get(m.platform, m.modelId) as EmbeddingRow | undefined;
+      const fields = {
+        family: m.family,
+        displayName: m.displayName,
+        dimensions: m.dimensions,
+        maxInputTokens: m.maxInputTokens,
+        priority: m.priority,
+        quotaLabel: m.quotaLabel,
+      };
+      if (row?.source === 'user') {
+        overlap.push(overlapEntry('embedding', row.id, m.platform, m.modelId, 'embedding', {
+          enabled: row.enabled === 1, family: row.family, displayName: row.display_name,
+          dimensions: row.dimensions, maxInputTokens: row.max_input_tokens,
+          priority: row.priority, quotaLabel: row.quota_label,
+        }, { enabled: m.enabled, ...fields }));
+        continue;
+      }
+      if (row) {
+        const enabled = m.enabled ? row.enabled : 0; // catalog and local disables both win
+        updateEmbedding.run({ ...fields, id: row.id, enabled });
+        counts.updated++;
+      } else {
+        insertEmbedding.run({ ...fields, platform: m.platform, modelId: m.modelId, enabled: m.enabled ? 1 : 0 });
+        counts.inserted++;
       }
     }
 
@@ -830,34 +917,19 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // media_models with modality='transcription' and gated on
     // TRANSCRIPTION_PLATFORMS the way MEDIA_PLATFORMS gates the generative
     // rows. Older catalogs omit this key; keep existing rows untouched then.
-    if (catalog.transcriptionModels) {
-      for (const m of catalog.transcriptionModels) {
-        if (!TRANSCRIPTION_PLATFORMS.has(m.platform)) {
-          counts.skippedUnknownPlatform++;
-          continue;
-        }
-        if (isCatalogModelTombstoned(db, 'media', m.platform, m.modelId)) continue;
-        inTranscriptionCatalog.add(`${m.platform}:${m.modelId}`);
-        const meta: Record<string, unknown> = {};
-        if (m.subtitleFormats?.length) meta.subtitleFormats = m.subtitleFormats;
-        if (typeof m.maxBytes === 'number') meta.maxBytes = m.maxBytes;
-        if (typeof m.requestStyle === 'string') meta.requestStyle = m.requestStyle;
-        const fields = {
-          displayName: m.displayName,
-          priority: m.priority,
-          quotaLabel: m.quotaLabel ?? '',
-          metaJson: Object.keys(meta).length > 0 ? JSON.stringify(meta) : null,
-        };
-        const row = selectMedia.get(m.platform, m.modelId) as { id: number; enabled: number } | undefined;
-        if (row) {
-          const enabled = m.enabled ? row.enabled : 0; // catalog and local disables both win
-          updateTranscription.run({ ...fields, id: row.id, enabled });
-          counts.updated++;
-        } else {
-          insertTranscription.run({ ...fields, platform: m.platform, modelId: m.modelId, enabled: m.enabled ? 1 : 0 });
-          counts.inserted++;
-        }
-      }
+    // Meta carries subtitle capability, upload ceiling and request flavor.
+    for (const m of catalog.transcriptionModels ?? []) {
+      const meta: Record<string, unknown> = {};
+      if (m.subtitleFormats?.length) meta.subtitleFormats = m.subtitleFormats;
+      if (typeof m.maxBytes === 'number') meta.maxBytes = m.maxBytes;
+      if (typeof m.requestStyle === 'string') meta.requestStyle = m.requestStyle;
+      applyMedia(TRANSCRIPTION_PLATFORMS, inTranscriptionCatalog, m, {
+        displayName: m.displayName,
+        modality: 'transcription',
+        priority: m.priority,
+        quotaLabel: m.quotaLabel ?? '',
+        metaJson: Object.keys(meta).length > 0 ? JSON.stringify(meta) : null,
+      });
     }
 
     counts.removed += deleteTombstonedCatalogModels(db);
@@ -912,7 +984,6 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     // source='catalog' by now, so what is left is exactly the discovered
     // stopgap the catalog has superseded.
     const managed = catalogPlatforms(catalog);
-    const pins = loadLocalPins(db); // local fork: self-registered rows survive prunes
     const discoveredRows = db
       .prepare('SELECT id, platform FROM models WHERE source = ?')
       .all(DISCOVERED_MODEL_SOURCE) as { id: number; platform: string }[];
@@ -938,88 +1009,17 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     counts.removed += (db.prepare('DELETE FROM embedding_models WHERE key_id IS NOT NULL AND key_id NOT IN (SELECT id FROM api_keys)').run().changes as number);
     counts.removed += (db.prepare('DELETE FROM media_models WHERE key_id IS NOT NULL AND key_id NOT IN (SELECT id FROM api_keys)').run().changes as number);
 
-    // Remove media models the catalog no longer lists (own table, no
-    // fallback_config). Deliberately an ALLOWLIST of the two modalities that
-    // `models[]` maintains, not "everything except transcription": video and
-    // transcription rows come from their own optional snapshots below, so a
-    // catalog that omits those keys must leave them alone. Widening this back
-    // to a `!=` filter would silently delete every video row on the first sync
-    // from an older catalog.
-    const mediaCandidates = db
-      .prepare("SELECT id, platform, model_id FROM media_models WHERE modality IN ('image', 'audio')")
-      .all() as { id: number; platform: string; model_id: string }[];
-    const deleteMedia = db.prepare('DELETE FROM media_models WHERE id = ?');
-    for (const c of mediaCandidates) {
-      if (!MEDIA_PLATFORMS.has(c.platform)) continue; // not media-managed by this binary
-      if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inMediaCatalog.has(`${c.platform}:${c.model_id}`)) {
-        deleteMedia.run(c.id);
-        counts.removed++;
-      }
-    }
-
-    // Prune video rows only when this catalog actually carries the dedicated
-    // snapshot. An older catalog cannot know whether a video row was retired.
-    if (catalog.videoModels) {
-      const videoCandidates = db
-        .prepare("SELECT id, platform, model_id FROM media_models WHERE modality = 'video'")
-        .all() as { id: number; platform: string; model_id: string }[];
-      for (const c of videoCandidates) {
-        if (!VIDEO_PLATFORMS.has(c.platform)) continue;
-        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inVideoCatalog.has(`${c.platform}:${c.model_id}`)) {
-          deleteMedia.run(c.id);
-          counts.removed++;
-        }
-      }
-    }
-
-    // Prune search engines only when the catalog carries the searchEngines
-    // snapshot. Custom search relays (platform 'custom') are the user's own
-    // and never pruned.
-    if (catalog.searchEngines) {
-      const searchCandidates = db
-        .prepare('SELECT id, platform, model_id, meta_json FROM media_models WHERE modality = ?')
-        .all(SEARCH_MODALITY) as { id: number; platform: string; model_id: string; meta_json: string | null }[];
-      for (const c of searchCandidates) {
-        if (isLocalCapability(c.meta_json)) continue;
-        if (!SEARCH_ENGINE_PLATFORMS.has(c.platform)) continue;
-        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inSearchCatalog.has(`${c.platform}:${c.model_id}`)) {
-          deleteMedia.run(c.id);
-          counts.removed++;
-        }
-      }
-    }
-
-    // Prune decision models only when the catalog carries the decisionModels
-    // snapshot (same rule as search engines).
-    if (catalog.decisionModels) {
-      const decisionCandidates = db
-        .prepare('SELECT id, platform, model_id, meta_json FROM media_models WHERE modality = ?')
-        .all(DECISION_MODALITY) as { id: number; platform: string; model_id: string; meta_json: string | null }[];
-      for (const c of decisionCandidates) {
-        if (isLocalCapability(c.meta_json)) continue;
-        if (!CATALOG_DECISION_PLATFORMS.has(c.platform)) continue;
-        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inDecisionCatalog.has(`${c.platform}:${c.model_id}`)) {
-          deleteMedia.run(c.id);
-          counts.removed++;
-        }
-      }
-    }
-
-    // Prune transcription rows only when the catalog actually carries the
-    // snapshot (mirrors the embeddings rule), scoped to the modality so
-    // image/audio rows are never touched by it.
-    if (catalog.transcriptionModels) {
-      const sttCandidates = db
-        .prepare("SELECT id, platform, model_id FROM media_models WHERE modality = 'transcription'")
-        .all() as { id: number; platform: string; model_id: string }[];
-      for (const c of sttCandidates) {
-        if (!TRANSCRIPTION_PLATFORMS.has(c.platform)) continue;
-        if (!pins.has(pinKey('media', c.platform, c.model_id)) && !inTranscriptionCatalog.has(`${c.platform}:${c.model_id}`)) {
-          deleteMedia.run(c.id);
-          counts.removed++;
-        }
-      }
-    }
+    // Remove catalog-owned media rows the catalog no longer lists. models[]
+    // maintains only image and audio: video, search, decision and
+    // transcription rows come from their own optional snapshots, so each is
+    // pruned only when this catalog carries that snapshot. Widening the
+    // models[] prune to "everything except ..." would silently delete every
+    // video row on the first sync from an older catalog.
+    pruneMedia(['image', 'audio'], MEDIA_PLATFORMS, inMediaCatalog);
+    if (catalog.videoModels) pruneMedia(['video'], VIDEO_PLATFORMS, inVideoCatalog);
+    if (catalog.searchEngines) pruneMedia([SEARCH_MODALITY], SEARCH_ENGINE_PLATFORMS, inSearchCatalog);
+    if (catalog.decisionModels) pruneMedia([DECISION_MODALITY], CATALOG_DECISION_PLATFORMS, inDecisionCatalog);
+    if (catalog.transcriptionModels) pruneMedia(['transcription'], TRANSCRIPTION_PLATFORMS, inTranscriptionCatalog);
 
     // Embeddings are their own full snapshot. Older catalogs omit this field,
     // AND catalogs may publish `embeddings: []` while still shipping model
@@ -1031,18 +1031,21 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
         .prepare(`
           SELECT id, platform, model_id
             FROM embedding_models
-           WHERE platform != 'custom' AND key_id IS NULL
+           WHERE source = 'catalog' AND platform != 'custom' AND key_id IS NULL
         `)
         .all() as { id: number; platform: string; model_id: string }[];
       const deleteEmbedding = db.prepare('DELETE FROM embedding_models WHERE id = ?');
       for (const c of embeddingCandidates) {
         if (!EMBEDDING_PLATFORMS.has(c.platform)) continue;
-        if (!pins.has(pinKey('embedding', c.platform, c.model_id)) && !inEmbeddingCatalog.has(`${c.platform}:${c.model_id}`)) {
+        if (!inEmbeddingCatalog.has(`${c.platform}:${c.model_id}`)) {
           deleteEmbedding.run(c.id);
           counts.removed++;
         }
       }
     }
+
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run(SETTING_OVERLAP, JSON.stringify(overlap));
 
     // Quirks are pure content: replace wholesale.
     db.prepare('DELETE FROM quirk_targets').run();

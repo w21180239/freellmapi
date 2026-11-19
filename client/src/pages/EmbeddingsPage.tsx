@@ -183,7 +183,7 @@ export default function EmbeddingsPage() {
   })
 
   const deleteCustom = useMutation({
-    mutationFn: (id: number) => apiFetch(`/api/embeddings/custom/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiFetch(`/api/embeddings/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['embeddings'] })
       queryClient.invalidateQueries({ queryKey: ['embeddings', 'usage'] })

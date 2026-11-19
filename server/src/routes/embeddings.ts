@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { getDb, setSetting } from '../db/index.js';
 import { decrypt, maskKey } from '../lib/crypto.js';
-import { deleteUnusedCustomEndpointKey } from '../lib/custom-provider-cleanup.js';
 import { resolveCustomEndpointKey } from '../services/custom-endpoint.js';
 import {
   listEmbeddingModels,
@@ -13,6 +12,8 @@ import {
   EmbeddingsError,
   type EmbeddingModelRow,
 } from '../services/embeddings.js';
+import { addEmbeddingModel, blockEmbeddingModel, patchEmbeddingModel } from '../services/model-ownership.js';
+import { addOwnershipRoutes, issuesMessage, parseRowId, withOwnership } from './ownership-routes.js';
 
 export const embeddingsRouter = Router();
 
@@ -57,6 +58,7 @@ embeddingsRouter.get('/', (_req: Request, res: Response) => {
           ? (customKeyIds.has(r.key_id) ? 1 : 0)
           : keyCounts.get(r.platform) ?? 0,
         isCustom: r.platform === 'custom',
+        source: r.source,
       })),
     })),
   });
@@ -198,41 +200,72 @@ embeddingsRouter.put('/', (req: Request, res: Response) => {
   }
 
   if (parsed.data.providers) {
-    const update = db.prepare('UPDATE embedding_models SET priority = ?, enabled = ? WHERE id = ?');
-    const apply = db.transaction((rows: { id: number; priority: number; enabled: boolean }[]) => {
-      for (const r of rows) update.run(r.priority, r.enabled ? 1 : 0, r.id);
+    // Same rule as PATCH /:id: a changed priority claims a catalog row.
+    const providers = parsed.data.providers;
+    const apply = db.transaction(() => {
+      for (const r of providers) {
+        if (db.prepare('SELECT 1 FROM embedding_models WHERE id = ?').get(r.id)) {
+          patchEmbeddingModel(db, r.id, { priority: r.priority, enabled: r.enabled });
+        }
+      }
     });
-    apply(parsed.data.providers);
+    apply();
   }
 
   res.json({ success: true });
 });
 
-embeddingsRouter.delete('/custom/:id', (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: { message: 'Invalid id' } });
+const addSchema = z.object({
+  platform: z.string().trim().min(1),
+  modelId: z.string().trim().min(1).max(200),
+  dimensions: z.number().int().positive(),
+  family: z.string().trim().min(1).max(200).optional(),
+  displayName: z.string().trim().min(1).max(200).optional(),
+  maxInputTokens: z.number().int().positive().nullable().optional(),
+  priority: z.number().int().min(0).optional(),
+  quotaLabel: z.string().trim().max(200).optional(),
+}).strict();
+
+// Add an embedding model on a built-in platform as the owner's row.
+embeddingsRouter.post('/', (req: Request, res: Response) => {
+  const parsed = addSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: issuesMessage(parsed.error) } });
     return;
   }
-
-  const db = getDb();
-  const row = db.prepare("SELECT family, key_id FROM embedding_models WHERE id = ? AND platform = 'custom'").get(id) as { family: string; key_id: number | null } | undefined;
-  if (!row) {
-    res.status(404).json({ error: { message: `Unknown custom embedding model ${id}` } });
-    return;
-  }
-
-  const remove = db.transaction(() => {
-    db.prepare("DELETE FROM embedding_models WHERE id = ? AND platform = 'custom'").run(id);
-    deleteUnusedCustomEndpointKey(db, row.key_id);
-  });
-  remove();
-  if (getDefaultFamily() === row.family) {
-    const replacement = db.prepare('SELECT family FROM embedding_models ORDER BY family, priority LIMIT 1').get() as { family: string } | undefined;
-    if (replacement) setSetting('embeddings_default_family', replacement.family);
-  }
-  res.json({ success: true });
+  let id = 0;
+  if (!withOwnership(res, () => { id = addEmbeddingModel(getDb(), parsed.data); })) return;
+  res.status(201).json({ success: true, id, platform: parsed.data.platform, modelId: parsed.data.modelId, source: 'user' });
 });
+
+const patchSchema = z.object({
+  enabled: z.boolean().optional(),
+  priority: z.number().int().min(0).optional(),
+  displayName: z.string().trim().min(1).max(200).optional(),
+  quotaLabel: z.string().trim().max(200).optional(),
+}).strict().refine(p => Object.keys(p).length > 0, { message: 'No fields provided' });
+
+// Content edits (anything but enabled) claim a catalog row.
+embeddingsRouter.patch('/:id', (req: Request, res: Response) => {
+  const id = parseRowId(req, res);
+  if (id == null) return;
+  const parsed = patchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: issuesMessage(parsed.error) } });
+    return;
+  }
+  if (withOwnership(res, () => patchEmbeddingModel(getDb(), id, parsed.data))) res.json({ success: true, id });
+});
+
+// Block: built-in rows get a user tombstone, custom rows release their key.
+embeddingsRouter.delete('/:id', (req: Request, res: Response) => {
+  const id = parseRowId(req, res);
+  if (id == null) return;
+  let result = { tombstoned: false };
+  if (withOwnership(res, () => { result = blockEmbeddingModel(getDb(), id); })) res.json({ success: true, ...result });
+});
+
+addOwnershipRoutes(embeddingsRouter, 'embedding');
 
 // Per-family usage: requests today (most embedding quotas are daily/RPM) and
 // tokens this calendar month, from the tagged request log.

@@ -409,15 +409,14 @@ export function deleteTombstonedCatalogModels(db: Db): number {
       FROM media_models mm
       JOIN catalog_model_tombstones t
         ON t.kind = 'media' AND t.platform = mm.platform AND t.model_id = mm.model_id
-     WHERE t.source = 'user'
+     WHERE t.source = 'user' AND mm.source = 'catalog'
   `).all() as { id: number }[];
-  // Local fork: blocked embeddings go too (custom relay rows are never catalog-blocked).
   const embeddingRows = db.prepare(`
     SELECT e.id
       FROM embedding_models e
       JOIN catalog_model_tombstones t
         ON t.kind = 'embedding' AND t.platform = e.platform AND t.model_id = e.model_id
-     WHERE t.source = 'user' AND e.platform != 'custom'
+     WHERE t.source = 'user' AND e.platform != 'custom' AND e.source = 'catalog'
   `).all() as { id: number }[];
 
   const deleteChatFallback = db.prepare('DELETE FROM fallback_config WHERE model_db_id = ?');

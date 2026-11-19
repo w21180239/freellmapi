@@ -196,11 +196,12 @@ describe('search routes', () => {
     expect(engines.body.find((e: any) => e.engineId === 'my-searxng')).toMatchObject({ isCustom: true, keyCount: 1 });
   });
 
-  it('registers a local search capability for an existing multi-capability provider', async () => {
+  it('adds a local search engine through POST /api/media for an existing multi-capability provider', async () => {
     addKey('beatapi');
-    const created = await call(app, 'POST', '/api/search/engines', { body: { platform: 'beatapi', engineId: 'beatapi-search', displayName: 'BeatAPI Search' } });
+    const created = await call(app, 'POST', '/api/media', { body: { platform: 'beatapi', modelId: 'beatapi-search', modality: 'search', displayName: 'BeatAPI Search' } });
     expect(created.status).toBe(201);
-    expect(created.body).toMatchObject({ platform: 'beatapi', engineId: 'beatapi-search', enabled: false, keyCount: 1 });
+    const engines = await call(app, 'GET', '/api/search/engines');
+    expect(engines.body.find((e: any) => e.id === created.body.id)).toMatchObject({ platform: 'beatapi', engineId: 'beatapi-search', enabled: true, keyCount: 1 });
   });
 
   it('serves POST /v1/search from a registered custom relay before any catalog engine (#1777)', async () => {

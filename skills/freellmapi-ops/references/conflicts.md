@@ -9,7 +9,8 @@ After resolving: `git add -A`, `git commit --no-edit`, rerun `node skills/freell
 | `client/src/components/keys/provider-visibility.test.tsx` | Keep the local version (asserts aclide and waterfall stay pickable). |
 | `server/src/routes/keys.ts` | Keep the local `UNLISTED_PLATFORMS` set (superset of upstream's aclide and waterfall). |
 | `server/src/routes/models.ts` | Keep the `isSearchPlatform` import and upstream's imports. The local `/:id/test` redirect message keeps the phrase "does not support chat" (an upstream test asserts it). |
-| `server/src/routes/search.ts` | Keep the local `POST /engines` handler and upstream's `POST /engines/:id/test` handler; merge imports (`SEARCH_ENGINE_PLATFORMS`, `runSearch`, `searchStatus`, `SearchError`, `registerLocalCapability`, `getSyncState`). |
+| `server/src/routes/search.ts` | Keep upstream's `POST /engines/:id/test` handler; local search engines are added through `POST /api/media` (`routes/media.ts`), so search.ts has no local `POST /engines`. |
+| `server/src/services/catalog-sync.ts` | Keep the local ownership rule: `applyMedia`/`pruneMedia` skip `source = 'user'` rows in every media snapshot and embeddings, and the apply writes `catalog_overlap`. Port upstream changes to individual snapshot blocks into the shared helpers. |
 
 Other conflicts: keep both behaviours. Drop a local change only when the owner says so.
 

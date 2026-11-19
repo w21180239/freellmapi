@@ -8,7 +8,7 @@ import { mintDashboardToken, isGatedApiPath } from '../helpers/auth.js';
 // The dashboard Audio tab lists speech-to-text rows (modality='transcription',
 // synced from the catalog's `transcriptionModels`) next to TTS. These tests pin
 // the contract that page relies on: GET /api/media returns transcription rows
-// unfiltered, and PUT /api/media/:id toggles them like any other media row.
+// unfiltered, and PATCH /api/media/:id toggles them like any other media row.
 
 let dashToken = '';
 
@@ -24,12 +24,12 @@ async function get(app: Express, path: string) {
   return { status: res.status, body: data };
 }
 
-async function put(app: Express, path: string, body: unknown) {
+async function patch(app: Express, path: string, body: unknown) {
   const server = app.listen(0, '127.0.0.1');
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const addr = server.address() as any;
   const res = await fetch(`http://127.0.0.1:${addr.port}${path}`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       ...(isGatedApiPath(path) ? { Authorization: `Bearer ${dashToken}` } : {}),
@@ -102,17 +102,17 @@ describe('transcription models on the media dashboard API', () => {
     expect(byPlatform.get('cloudflare')).toBe(0);
   });
 
-  it('toggles a transcription row off and back on via PUT /api/media/:id', async () => {
+  it('toggles a transcription row off and back on via PATCH /api/media/:id', async () => {
     seedTranscriptionRows();
     const row = getDb().prepare(
       "SELECT id FROM media_models WHERE modality = 'transcription' AND platform = 'groq'",
     ).get() as { id: number };
 
-    expect((await put(app, `/api/media/${row.id}`, { enabled: false })).status).toBe(200);
+    expect((await patch(app, `/api/media/${row.id}`, { enabled: false })).status).toBe(200);
     let listed = await get(app, '/api/media');
     expect(listed.body.models.find((m: any) => m.id === row.id).enabled).toBe(false);
 
-    expect((await put(app, `/api/media/${row.id}`, { enabled: true })).status).toBe(200);
+    expect((await patch(app, `/api/media/${row.id}`, { enabled: true })).status).toBe(200);
     listed = await get(app, '/api/media');
     expect(listed.body.models.find((m: any) => m.id === row.id).enabled).toBe(true);
   });

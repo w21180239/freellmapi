@@ -280,8 +280,8 @@ describe('custom provider modalities', () => {
     const stillPresent = afterChatDelete.body.find((k: any) => k.id === key.id);
     expect(stillPresent.models.map((m: any) => m.kind).sort()).toEqual(['embedding', 'image']);
 
-    expect((await del(app, `/api/embeddings/custom/${embedding.id}`)).status).toBe(200);
-    expect((await del(app, `/api/media/custom/${image.id}`)).status).toBe(200);
+    expect((await del(app, `/api/embeddings/${embedding.id}`)).status).toBe(200);
+    expect((await del(app, `/api/media/${image.id}`)).status).toBe(200);
     const afterAllDeleted = await get(app, '/api/keys');
     expect(afterAllDeleted.body.find((k: any) => k.id === key.id)).toBeUndefined();
   });

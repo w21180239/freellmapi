@@ -72,11 +72,12 @@ describe('decision routes', () => {
     vi.restoreAllMocks();
   });
 
-  it('registers a local decision model using an existing provider key', async () => {
+  it('adds a local decision model through POST /api/media using an existing provider key', async () => {
     addKey('beatapi', 'test-key');
-    const response = await call(app, 'POST', '/api/decisions/models', { body: { platform: 'beatapi', modelId: 'jev-1.14-free', displayName: 'Jev 1.14 Free' } });
+    const response = await call(app, 'POST', '/api/media', { body: { platform: 'beatapi', modelId: 'jev-1.14-free', modality: 'decision', displayName: 'Jev 1.14 Free' } });
     expect(response.status).toBe(201);
-    expect(response.body).toMatchObject({ platform: 'beatapi', modelId: 'jev-1.14-free', enabled: false, keyCount: 1 });
+    const list = await call(app, 'GET', '/api/decisions/models');
+    expect(list.body.find((m: { id: number }) => m.id === response.body.id)).toMatchObject({ platform: 'beatapi', modelId: 'jev-1.14-free', enabled: true, keyCount: 1 });
   });
 
   it('POST /v1/decisions needs the unified key', async () => {
@@ -190,8 +191,8 @@ describe('decision routes', () => {
   // entry. Pinning by model id would let the test pass on the row nobody clicked.
   it('pins the test to the row that was clicked', async () => {
     addKey('beatapi', 'beatapi-key');
-    const created = await call(app, 'POST', '/api/decisions/models', {
-      body: { platform: 'beatapi', modelId: '@cf/cloudflare/clef-flash', displayName: 'Clef via BeatAPI' },
+    const created = await call(app, 'POST', '/api/media', {
+      body: { platform: 'beatapi', modelId: '@cf/cloudflare/clef-flash', modality: 'decision', displayName: 'Clef via BeatAPI' },
     });
     expect(created.status).toBe(201);
     const rowId = created.body.id;

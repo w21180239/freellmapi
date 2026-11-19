@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { initDb, getDb, setSetting, getSetting } from '../../db/index.js';
 import { applyCatalog, reapplyCachedCatalog, MIN_CATALOG_VERSION } from '../../services/catalog-sync.js';
 import { runMigrationsSync } from '../../db/migrate/runner.js';
-import { pinLocalModel } from '../../services/local-catalog-pins.js';
 import {
   getCatalogModelTombstone,
   recordCatalogModelTombstone,
@@ -817,16 +816,15 @@ describe('applyCatalog: searchEngines', () => {
     expect(searchRows()).toHaveLength(2);
   });
 
-  // Local fork allowlist / blocklist on top of the catalog.
-  it('keeps locally pinned media rows the catalog does not list', () => {
+  // Local overlay: source='user' rows survive, user tombstones block.
+  it('keeps user-owned media rows the catalog does not list', () => {
     getDb().prepare(`
       INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled)
       VALUES ('typecast', 'ssfm-v31', 'SSFM v3.1', 'audio', 1, 1),
              ('cartesia', 'ink-whisper', 'Ink Whisper', 'transcription', 1, 1),
              ('cartesia', 'ink-stale', 'Ink Stale', 'transcription', 1, 1)
     `).run();
-    pinLocalModel(getDb(), 'media', 'typecast', 'ssfm-v31');
-    pinLocalModel(getDb(), 'media', 'cartesia', 'ink-whisper');
+    getDb().prepare("UPDATE media_models SET source = 'user' WHERE model_id IN ('ssfm-v31', 'ink-whisper')").run();
     const catalog = searchCatalog(searchRoster());
     catalog.managedPlatforms = ['typecast', 'cartesia'];
     catalog.transcriptionModels = [];
@@ -835,14 +833,14 @@ describe('applyCatalog: searchEngines', () => {
       .toEqual([{ model_id: 'ink-whisper' }, { model_id: 'ssfm-v31' }]);
   });
 
-  it('keeps a pinned embedding and never re-adds a blocked one', () => {
+  it('keeps a user-owned embedding and never re-adds a blocked one', () => {
     const extra = (modelId: string): CatalogEmbedding => ({
       family: modelId, platform: 'silvr', modelId, displayName: modelId, dimensions: 1536,
       maxInputTokens: 8192, priority: 5, enabled: true, quotaLabel: '',
     });
     getDb().prepare(`INSERT INTO embedding_models (family, platform, model_id, display_name, dimensions, priority, enabled)
       VALUES ('mine', 'silvr', 'mine', 'mine', 1536, 5, 1)`).run();
-    pinLocalModel(getDb(), 'embedding', 'silvr', 'mine');
+    getDb().prepare("UPDATE embedding_models SET source = 'user' WHERE platform = 'silvr' AND model_id = 'mine'").run();
     recordCatalogModelTombstone(getDb(), 'embedding', 'silvr', 'bad');
     const catalog = searchCatalog();
     catalog.embeddings = [...existingAsCatalogEmbeddings().filter(e => e.platform !== 'silvr'), extra('bad'), extra('good')];

@@ -163,12 +163,12 @@ export function MediaModelsView({ modality }: { modality: 'image' | 'video' | 'a
 
   const toggle = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
-      apiFetch(`/api/media/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+      apiFetch(`/api/media/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['media'] }),
   })
 
   const deleteCustom = useMutation({
-    mutationFn: (id: number) => apiFetch(`/api/media/custom/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiFetch(`/api/media/${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['media'] }),
   })
 

@@ -18,6 +18,7 @@ import { embeddingsRouter } from './routes/embeddings.js';
 import { mediaRouter } from './routes/media.js';
 import { searchRouter } from './routes/search.js';
 import { decisionsRouter } from './routes/decisions.js';
+import { catalogRouter } from './routes/catalog.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { healthRouter } from './routes/health.js';
 import { freeTierRouter } from './routes/free-tier.js';
@@ -292,6 +293,7 @@ export function createApp(config?: Config) {
   app.use('/api/media', requireAuth, mediaRouter);
   app.use('/api/search', requireAuth, searchRouter);
   app.use('/api/decisions', requireAuth, decisionsRouter);
+  app.use('/api/catalog', requireAuth, catalogRouter);
   app.use('/api/analytics', requireAuth, analyticsRouter);
   app.use('/api/health', requireAuth, healthRouter);
   app.use('/api/free-tier', requireAuth, freeTierRouter);

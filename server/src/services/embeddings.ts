@@ -42,6 +42,7 @@ export interface EmbeddingModelRow {
   enabled: number;
   quota_label: string;
   key_id: number | null;
+  source: string;
 }
 
 export interface EmbeddingsResult {
@@ -339,8 +340,8 @@ export function registerCustomEmbeddingModel(db: Db, reg: CustomEmbeddingRegistr
 
   const model = db.prepare(`
     INSERT INTO embedding_models
-      (family, platform, model_id, display_name, dimensions, max_input_tokens, priority, enabled, quota_label, key_id)
-    VALUES (?, 'custom', ?, ?, ?, ?, ?, 1, ?, ?)
+      (family, platform, model_id, display_name, dimensions, max_input_tokens, priority, enabled, quota_label, key_id, source)
+    VALUES (?, 'custom', ?, ?, ?, ?, ?, 1, ?, ?, 'user')
   `).run(reg.family, reg.modelId, reg.displayName ?? reg.modelId, reg.dimensions, reg.maxInputTokens, priority, reg.quotaLabel, bindKeyId);
   return { modelDbId: Number(model.lastInsertRowid), created: true };
 }

@@ -1,8 +1,7 @@
 // Management-API subcommands: health, inventory, add-models, enable-models, test-sample, lists.
 import fs from 'node:fs';
-import path from 'node:path';
 import {
-  REPO, baseUrl, die, git, healthStatus, listenerPid, log, parseArgs, run, sleep, withSession,
+  baseUrl, die, git, healthStatus, listenerPid, log, parseArgs, sleep, withSession,
 } from './lib.mjs';
 
 const arr = (j) => (Array.isArray(j) ? j : j?.data ?? j?.models ?? []);
@@ -56,43 +55,53 @@ export async function inventory(argv) {
   });
 }
 
-/* ---- add-models ---- */
-const ADD_FIELDS = ['platform', 'modelId', 'displayName', 'contextWindow', 'supportsTools', 'supportsVision', 'rpmLimit', 'rpdLimit', 'tpmLimit', 'tpdLimit', 'keyId', 'endpointScope'];
+/* ---- add-models: chat, media (any modality) and embedding rows ---- */
+const ADD_FIELDS = {
+  chat: ['platform', 'modelId', 'displayName', 'contextWindow', 'supportsTools', 'supportsVision', 'rpmLimit', 'rpdLimit', 'tpmLimit', 'tpdLimit', 'keyId', 'endpointScope'],
+  media: ['platform', 'modelId', 'modality', 'displayName', 'priority', 'quotaLabel', 'meta'],
+  embedding: ['platform', 'modelId', 'dimensions', 'family', 'displayName', 'maxInputTokens', 'priority', 'quotaLabel'],
+};
+// Absent modality = chat; 'embedding' = embedding table; anything else = media_models.
+const kindOf = (m) => (!m.modality || m.modality === 'chat' || m.modality === 'text' ? 'chat' : m.modality === 'embedding' ? 'embedding' : 'media');
 
 export async function addModels(argv) {
   const { flags, pos } = parseArgs(argv, ['skip', 'pace']);
-  if (!pos[0]) die('usage: ops.mjs add-models <file.json> [--dry-run] [--skip <id-regex>] [--pace 120]\n  file = JSON array of {platform, modelId, displayName?, contextWindow?, supportsTools?, supportsVision?}');
+  if (!pos[0]) die('usage: ops.mjs add-models <file.json> [--dry-run] [--skip <id-regex>] [--pace 120]\n  file = JSON array of {platform, modelId, modality?, displayName?, ...}; modality absent = chat, image|audio|video|transcription|search|decision = media (meta?), embedding = embedding (dimensions, family?)');
   const raw = JSON.parse(fs.readFileSync(pos[0], 'utf8'));
   const input = Array.isArray(raw) ? raw : raw.models ?? [];
   const skip = flags.skip ? new RegExp(flags.skip, 'i') : null;
   const pace = Number(flags.pace ?? 120);
-  const bad = input.filter((m) => !m?.platform || !m?.modelId);
-  if (bad.length) die(`${bad.length} entries lack platform/modelId; fix the file first`);
+  const bad = input.filter((m) => !m?.platform || !m?.modelId || (kindOf(m) === 'embedding' && !m.dimensions));
+  if (bad.length) die(`${bad.length} entries lack platform/modelId (or dimensions for embeddings); fix the file first`);
 
   await withSession(async ({ call }) => {
-    const existing = new Set(arr((await call('GET', '/api/models')).json)
-      .filter((m) => !m.endpointScope).map((m) => `${m.platform}\t${m.modelId}`));
+    const present = async (kind) => new Set((await rowsOf(call, kind))
+      .filter((m) => !m.endpointScope && !m.isCustom).map((m) => `${m.platform}\t${m.modelId}`));
+    const kinds = [...new Set(input.map(kindOf))];
+    const existing = Object.fromEntries(await Promise.all(kinds.map(async (k) => [k, await present(k)])));
     const todo = []; let exists = 0; let skipped = 0;
     for (const m of input) {
-      if (existing.has(`${m.platform}\t${m.modelId}`)) { exists++; continue; }
+      const kind = kindOf(m);
+      if (existing[kind].has(`${m.platform}\t${m.modelId}`)) { exists++; continue; }
       if (skip?.test(m.modelId)) { skipped++; continue; }
-      todo.push(Object.fromEntries(ADD_FIELDS.filter((f) => m[f] !== undefined).map((f) => [f, m[f]])));
+      todo.push({ kind, body: Object.fromEntries(ADD_FIELDS[kind].filter((f) => m[f] !== undefined).map((f) => [f, m[f]])) });
     }
-    log(`add-models: input ${input.length}, already present ${exists}, skipped by --skip ${skipped}, to add ${todo.length}`);
+    const byKind = kinds.map((k) => `${k} ${todo.filter((t) => t.kind === k).length}`).join(', ');
+    log(`add-models: input ${input.length}, already present ${exists}, skipped by --skip ${skipped}, to add ${todo.length} (${byKind})`);
     if (flags['dry-run']) { log('add-models: dry-run, nothing written'); return; }
 
     let added = 0; const rejected = new Map();
-    for (const m of todo) {
-      const r = await call('POST', '/api/models', m);
+    for (const { kind, body } of todo) {
+      const r = await call('POST', KINDS[kind], body);
       if (r.status === 429) die(`add-models: still rate-limited after retry; added ${added} so far, rerun later (existing rows are skipped)`);
       if (r.status === 200 || r.status === 201) added++;
-      else { const k = clip(r.json?.error?.message ?? `HTTP ${r.status}`, 100); rejected.set(k, [...(rejected.get(k) ?? []), `${m.platform}/${m.modelId}`]); }
+      else { const k = clip(r.json?.error?.message ?? `HTTP ${r.status}`, 100); rejected.set(k, [...(rejected.get(k) ?? []), `${body.platform}/${body.modelId}`]); }
       await sleep(pace);
     }
-    const live = new Set(arr((await call('GET', '/api/models')).json).map((m) => `${m.platform}\t${m.modelId}`));
-    const present = todo.filter((m) => live.has(`${m.platform}\t${m.modelId}`)).length;
+    const live = Object.fromEntries(await Promise.all(kinds.map(async (k) => [k, await present(k)])));
+    const readBack = todo.filter((t) => live[t.kind].has(`${t.body.platform}\t${t.body.modelId}`)).length;
     for (const [msg, ids] of rejected) log(`rejected x${ids.length}: ${msg}  e.g. ${ids.slice(0, 3).join(', ')}`);
-    log(`add-models: added ${added}, rejected ${[...rejected.values()].flat().length}, read-back present ${present}/${todo.length}`);
+    log(`add-models: added ${added}, rejected ${[...rejected.values()].flat().length}, read-back present ${readBack}/${todo.length}`);
   });
 }
 
@@ -171,8 +180,81 @@ export async function testSample(argv) {
   });
 }
 
-/* ---- lists: passthrough to scripts/catalog-lists.mjs ---- */
-export function lists(argv) {
-  const r = run('node', [path.join(REPO, 'scripts', 'catalog-lists.mjs'), ...argv], { inherit: true });
-  process.exit(r.code);
+/* ---- lists: the local overlay on the signed catalog ---- */
+const KINDS = { chat: '/api/models', media: '/api/media', embedding: '/api/embeddings' };
+const LISTS_USAGE = `usage: ops.mjs lists <subcommand>
+  list                                         user-owned rows per kind, then user blocks
+  add <kind> <platform> <modelId> [--modality m] [--meta json] [--dimensions n] [--family f] [--display-name s]
+  block|unblock <kind> <platform> <modelId>    delete for good (user tombstone) / lift the block
+  claim|release <kind> <platform> <modelId>    take a catalog row over / hand it back to the catalog
+  overlap                                      user rows the catalog also lists, with differing fields
+kind = chat | media | embedding; media modality = image|audio|video|transcription|search|decision`;
+
+// Every row of one kind as {id, platform, modelId}. Search and decision rows
+// are not in GET /api/media, so media also reads their own listings.
+async function rowsOf(call, kind) {
+  if (kind === 'chat') return arr((await call('GET', '/api/models')).json);
+  if (kind === 'embedding') return ((await call('GET', '/api/embeddings')).json?.families ?? []).flatMap((f) => f.providers);
+  const media = (await call('GET', '/api/media')).json?.models ?? [];
+  const search = arr((await call('GET', '/api/search/engines')).json).map((e) => ({ ...e, modelId: e.engineId }));
+  const decision = arr((await call('GET', '/api/decisions/models')).json);
+  return [...media, ...search, ...decision];
+}
+
+async function findRow(call, kind, platform, modelId) {
+  const rows = (await rowsOf(call, kind)).filter((r) => r.platform === platform && r.modelId === modelId && !r.isCustom && !r.endpointScope);
+  return rows[0] ?? null;
+}
+
+function report(label, r, ok = [200, 201]) {
+  if (!ok.includes(r.status)) die(`${label}: HTTP ${r.status} ${clip(r.json?.error?.message ?? '', 200)}`);
+  log(`${label}: ok`);
+}
+
+export async function lists(argv) {
+  const { flags, pos } = parseArgs(argv, ['modality', 'meta', 'dimensions', 'family', 'display-name']);
+  const [sub, kind, platform, modelId] = pos;
+  if (!sub) die(LISTS_USAGE, 2);
+  const needIdentity = () => {
+    if (!KINDS[kind] || !platform || !modelId) die(LISTS_USAGE, 2);
+    return `${kind} ${platform}/${modelId}`;
+  };
+  await withSession(async ({ call }) => {
+    if (sub === 'list') {
+      const local = arr((await call('GET', '/api/catalog/local')).json);
+      const blocks = arr((await call('GET', '/api/catalog/tombstones')).json);
+      for (const r of local) log(`user\t${r.kind}\t${r.modality}\t${r.platform}\t${r.modelId}\t${r.enabled ? 'on' : 'off'}\tid=${r.id}`);
+      for (const t of blocks) log(`blocked\t${t.kind}\t${t.platform}\t${t.modelId}\t${t.createdAt}`);
+      log(`lists: ${local.length} user rows, ${blocks.length} blocks`);
+    } else if (sub === 'overlap') {
+      const overlap = arr((await call('GET', '/api/catalog/overlap')).json);
+      for (const o of overlap) log(`${o.kind}\t${o.modality}\t${o.platform}\t${o.modelId}\tid=${o.id}\tdiffers: ${Object.keys(o.differs).join(',') || 'none'}`);
+      log(`overlap: ${overlap.length} user rows also listed by the catalog`);
+    } else if (sub === 'add') {
+      const label = needIdentity();
+      const body = { platform, modelId, ...(flags['display-name'] ? { displayName: flags['display-name'] } : {}) };
+      if (kind === 'media') {
+        if (!flags.modality) die('lists add media needs --modality');
+        Object.assign(body, { modality: flags.modality }, flags.meta ? { meta: JSON.parse(flags.meta) } : {});
+      } else if (kind === 'embedding') {
+        if (!flags.dimensions) die('lists add embedding needs --dimensions');
+        Object.assign(body, { dimensions: Number(flags.dimensions) }, flags.family ? { family: flags.family } : {});
+      }
+      report(`add ${label}`, await call('POST', KINDS[kind], body));
+    } else if (sub === 'block') {
+      const label = needIdentity();
+      const row = await findRow(call, kind, platform, modelId);
+      report(`block ${label}`, row
+        ? await call('DELETE', `${KINDS[kind]}/${row.id}`)
+        : await call('POST', '/api/catalog/tombstones', { kind, platform, modelId }));
+    } else if (sub === 'unblock') {
+      const label = needIdentity();
+      report(`unblock ${label}`, await call('DELETE', '/api/catalog/tombstones', { kind, platform, modelId }));
+    } else if (sub === 'claim' || sub === 'release') {
+      const label = needIdentity();
+      const row = await findRow(call, kind, platform, modelId);
+      if (!row) die(`${sub} ${label}: no local row`);
+      report(`${sub} ${label}`, await call('POST', `${KINDS[kind]}/${row.id}/${sub}`));
+    } else die(LISTS_USAGE, 2);
+  });
 }

@@ -32,7 +32,7 @@ export default function MediaDetailPage({ modality }: { modality: 'image' | 'vid
 
   const toggle = useMutation({
     mutationFn: (vars: { mediaId: number; enabled: boolean }) =>
-      apiFetch(`/api/media/${vars.mediaId}`, { method: 'PUT', body: JSON.stringify({ enabled: vars.enabled }) }),
+      apiFetch(`/api/media/${vars.mediaId}`, { method: 'PATCH', body: JSON.stringify({ enabled: vars.enabled }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['media'] }),
   })
 
