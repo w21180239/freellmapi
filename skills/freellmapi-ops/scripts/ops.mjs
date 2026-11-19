@@ -9,7 +9,7 @@ const USAGE = `subcommands:
   serve <start|stop|restart|status|logs [-n 40]> [--no-build]   headless server on 127.0.0.1:31415
   serve autostart <on|off|status>          start the headless server at Windows logon
   dev-restart                              rebuild server + client, restart the headless server
-  sync-upstream [--skip-tests] [--no-restart]   merge upstream/main, build, test, restart
+  sync-upstream [--skip-tests] [--no-restart] [--no-push]   merge upstream/main, build, test, restart, push
   health                                   app status, key/model counts (read-only)
   inventory [--platform a,b] [--list-models] [--json]   keys and models per platform, non-secret fields
   keys <list|add|enable|disable|delete> [--platform P] [--label L] [ids...]   secret for add: FREELLMAPI_NEW_KEY or stdin

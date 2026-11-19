@@ -22,7 +22,7 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 | `serve restart [--no-build]` / `serve status` / `serve logs [-n 40]` | restart; port listener, pid file, health; server log tail | `serve: port 31415 listener pid P (node.exe); pid file P; /health=200` |
 | `serve autostart on\|off\|status` | Startup-folder `freellmapi-serve.vbs` runs `serve start --no-build` hidden at logon; `on` also removes other FreeLLMAPI/Electron autostart entries | `autostart: on (<path>)` |
 | `dev-restart` | force-build server and client, restart the server | `serve: /health=200 after Ns (pid P)` |
-| `sync-upstream [--skip-tests] [--no-restart]` | fetch, merge `upstream/main`, install, build, server + client tests, restart the headless server, list providers still needing a key | `providers: N without a key (M new upstream)`, then last line `sync-upstream: done (N incoming)` plus the push command |
+| `sync-upstream [--skip-tests] [--no-restart] [--no-push]` | fetch, merge `upstream/main`, install, build, server + client tests, restart the headless server, list providers still needing a key, push `origin/local/customizations` (skipped with `--skip-tests`) | `providers: N without a key (M new upstream)`, `push: origin/local/customizations at <sha>`, last line `sync-upstream: done (N incoming)` |
 | `health` | status, key and model counts | `health=ok` |
 | `keys list [--platform a,b] [--json]` | id, platform, label, on/off, status, decrypt check, cooldowns; no key material | `keys: N keys, E enabled, 0 decrypt-failed` |
 | `keys add --platform P [--label L] [--proxy-url U]` | add a key; the secret comes from `FREELLMAPI_NEW_KEY` or stdin, never argv | `keys add: id N platform P (secret length L)` |
@@ -45,7 +45,7 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 1. Run `sync-upstream`. It refuses off `local/customizations`.
 2. Exit at a conflict list: resolve per [references/conflicts.md](references/conflicts.md), `git add -A`, `git commit --no-edit`, rerun `sync-upstream`. A rerun with 0 incoming still builds, tests and restarts.
 3. Test failures: `proxy.test.ts > sends a *.localhost subdomain direct` (Windows DNS) and a `fallback-loop-hedge.test.ts` failure that passes on rerun are waived by the script and listed as `non-blocking`. Any other failure stops the sync; fix it or ask the owner.
-4. Push only on the owner's go: `git push origin local/customizations`.
+4. A green run pushes `origin/local/customizations` itself (owner standing order); `--no-push` holds it.
 
 ## Catalog work
 

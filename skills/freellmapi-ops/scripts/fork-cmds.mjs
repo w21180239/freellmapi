@@ -131,8 +131,16 @@ export async function syncUpstream(argv) {
     await withSession(({ call }) => providerReport(call, { record: true }));
   }
 
+  // Push only a fully verified run; a skipped test pass leaves it to the owner.
+  if (flags['no-push'] || flags['skip-tests']) step('push', `SKIPPED (${flags['no-push'] ? '--no-push' : '--skip-tests'}); run: git push origin ${BRANCH}`);
+  else {
+    const p = git('push', 'origin', BRANCH);
+    if (p.code !== 0) { log(p.out); die(`sync-upstream: git push origin ${BRANCH} failed (output above); merge, build and restart are done`); }
+    step('push', `origin/${BRANCH} at ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`);
+  }
+
   log('\n== summary');
   steps.forEach((s) => log(`  ${s}`));
   waived.forEach((w) => log(`  non-blocking: ${w}`));
-  log(`sync-upstream: done (${incoming} incoming). Push when satisfied: git push origin ${BRANCH}`);
+  log(`sync-upstream: done (${incoming} incoming)`);
 }
