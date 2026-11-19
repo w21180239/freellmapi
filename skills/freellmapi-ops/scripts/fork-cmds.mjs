@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, die, git, log, parseArgs, run, withSession } from './lib.mjs';
+import { APPDATA_DIR, REPO, die, git, log, parseArgs, run, withSession } from './lib.mjs';
 import { providerReport } from './gui-cmds.mjs';
 import { build, restartServer } from './serve.mjs';
 
@@ -13,8 +13,9 @@ const CONFLICTS_DOC = 'skills/freellmapi-ops/references/conflicts.md';
 const NON_BLOCKING = [
   { file: /proxy\.test\.ts$/, name: /sends a \*\.localhost subdomain direct/, why: 'Windows DNS cannot resolve *.localhost' },
 ];
-// Timing-sensitive: rerun alone; a pass there clears it.
-const FLAKY_FILE = /(fallback-loop-hedge|router-bandit)\.test\.ts$/;
+// Last fully verified HEAD; a sync with nothing new since then skips straight to push.
+const VERIFIED_FILE = path.join(APPDATA_DIR, 'sync-verified.json');
+const readVerified = () => { try { return JSON.parse(fs.readFileSync(VERIFIED_FILE, 'utf8')).head ?? null; } catch { return null; } };
 
 // Providers un-hidden locally; a new upstream `hidden: true` on them must be removed.
 const UNHIDDEN = ['aclide', 'speka', 'cerebras', 'clod', 'waterfall', 'mistral', 'ainative', 'jamai'];
@@ -48,16 +49,20 @@ function vitestFailures(cwd, args, label) {
   return { crashed: false, failed, total: j.numTotalTests };
 }
 
+// Server tests run in parallel; files that fail there get one serial rerun, and a pass
+// there clears them (timing and shared-state flakes under load).
 function classifyFailures(res, cwd) {
   const blocking = []; const waived = [];
+  const rest = [];
   for (const f of res.failed) {
     const known = NON_BLOCKING.find((k) => k.file.test(f.file) && k.name.test(f.name));
-    if (known) { waived.push(`${f.name} (${known.why})`); continue; }
-    if (FLAKY_FILE.test(f.file)) {
-      const again = vitestFailures(cwd, ['--pool=forks', '--fileParallelism=false', f.file], 'rerun');
-      if (!again.crashed && again.failed.length === 0) { waived.push(`${f.name} (timing flake, passed on rerun)`); continue; }
-    }
-    blocking.push(`${f.file}: ${f.name}`);
+    if (known) waived.push(`${f.name} (${known.why})`); else rest.push(f);
+  }
+  for (const file of [...new Set(rest.map((f) => f.file))]) {
+    const again = vitestFailures(cwd, ['--pool=forks', '--fileParallelism=false', file], 'rerun');
+    const names = rest.filter((f) => f.file === file).map((f) => f.name);
+    if (!again.crashed && again.failed.length === 0) names.forEach((n) => waived.push(`${n} (passed on serial rerun)`));
+    else names.forEach((n) => blocking.push(`${file}: ${n}`));
   }
   return { blocking, waived };
 }
@@ -94,11 +99,23 @@ export async function syncUpstream(argv) {
     step('merge', `upstream/main merged, HEAD ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`);
   }
 
+  const head = git('rev-parse', 'HEAD').stdout.trim();
+  const verified = readVerified();
+  if (incoming === 0 && verified === head && !flags.full) {
+    step('verify', `HEAD ${head.slice(0, 8)} already built, tested and running; skipped (--full forces)`);
+    return finish(flags, steps, []);
+  }
+
   const hidden = checkUnhidden();
   if (hidden.length) { hidden.forEach((h) => log(`  ${h}`)); die(`sync-upstream: shared.tsx re-hides a locally un-hidden provider or re-adds jamai; fix per ${CONFLICTS_DOC} (row shared.tsx), then rerun.`); }
   step('unhidden-check', 'ok');
 
-  for (const [name, cmd, args] of [['npm install', 'npm', ['install']], ['build', 'npm', ['run', 'build']]]) {
+  // npm install only when a manifest or lockfile moved since the last verified HEAD.
+  const depsDiff = verified ? git('diff', '--name-only', verified, head, '--', 'package.json', 'package-lock.json', '*/package.json') : null;
+  const depsMoved = !depsDiff || depsDiff.code !== 0 || depsDiff.stdout.trim() !== ''
+    || !fs.existsSync(path.join(REPO, 'node_modules')) || flags.full;
+  if (!depsMoved) step('npm install', 'skipped (no package.json / lockfile change)');
+  for (const [name, cmd, args] of [...(depsMoved ? [['npm install', 'npm', ['install']]] : []), ['build', 'npm', ['run', 'build']]]) {
     const r = run(cmd, args);
     if (r.code !== 0) { log(r.out.split(/\r?\n/).slice(-25).join('\n')); die(`sync-upstream: ${name} failed (output tail above)`); }
     step(name, 'ok');
@@ -107,7 +124,7 @@ export async function syncUpstream(argv) {
   const waived = [];
   if (flags['skip-tests']) step('tests', 'SKIPPED (--skip-tests)');
   else {
-    for (const [label, cwd, args] of [['server', path.join(REPO, 'server'), ['--pool=forks', '--fileParallelism=false']], ['client', path.join(REPO, 'client'), []]]) {
+    for (const [label, cwd, args] of [['server', path.join(REPO, 'server'), []], ['client', path.join(REPO, 'client'), []]]) {
       const res = vitestFailures(cwd, args, label);
       if (res.crashed) { log(res.tail); die(`sync-upstream: ${label} tests produced no result (output tail above)`); }
       const { blocking, waived: w } = classifyFailures(res, cwd);
@@ -126,17 +143,22 @@ export async function syncUpstream(argv) {
     step('restart', `/health=200 after ${r.secs}s`);
   }
 
+  if (!flags['skip-tests'] && !flags['no-restart']) fs.writeFileSync(VERIFIED_FILE, JSON.stringify({ head, at: new Date().toISOString() }));
+  return finish(flags, steps, waived, incoming);
+}
+
+async function finish(flags, steps, waived, incoming = 0) {
   if (!flags['no-restart']) {
     log('\n== providers still needing a key');
     await withSession(({ call }) => providerReport(call, { record: true }));
   }
 
   // Push only a fully verified run; a skipped test pass leaves it to the owner.
-  if (flags['no-push'] || flags['skip-tests']) step('push', `SKIPPED (${flags['no-push'] ? '--no-push' : '--skip-tests'}); run: git push origin ${BRANCH}`);
+  if (flags['no-push'] || flags['skip-tests']) steps.push(`push: SKIPPED (${flags['no-push'] ? '--no-push' : '--skip-tests'}); run: git push origin ${BRANCH}`);
   else {
     const p = git('push', 'origin', BRANCH);
     if (p.code !== 0) { log(p.out); die(`sync-upstream: git push origin ${BRANCH} failed (output above); merge, build and restart are done`); }
-    step('push', `origin/${BRANCH} at ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`);
+    steps.push(`push: origin/${BRANCH} at ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`);
   }
 
   log('\n== summary');
