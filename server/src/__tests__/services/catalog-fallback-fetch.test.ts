@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { catalogFetch, setCatalogFallbackFetch, validateLicenseKey } from '../../services/catalog-sync.js';
+import { catalogFetch, setCatalogFallbackFetch, syncCatalog, validateLicenseKey } from '../../services/catalog-sync.js';
+import { initDb } from '../../db/index.js';
 
 // Node's fetch failing the TLS handshake surfaces as TypeError('fetch failed')
 // with the real reason on .cause — what Windows desktop users hit.
@@ -81,5 +82,45 @@ describe('validateLicenseKey', () => {
 
     await expect(validateLicenseKey('fla_TESTKEY')).resolves.toBeNull();
     expect(warn.mock.calls.some(c => String(c[0]).includes('license activation unreachable: net::ERR_CONNECTION_REFUSED'))).toBe(true);
+  });
+});
+
+describe('syncCatalog retry', () => {
+  it('retries a thrown fetch with backoff and succeeds on the third attempt', async () => {
+    initDb(':memory:');
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const nodeFetch = vi.fn()
+        .mockRejectedValueOnce(tlsFailure())
+        .mockRejectedValueOnce(tlsFailure())
+        .mockResolvedValueOnce(new Response(null, { status: 304 }));
+      vi.stubGlobal('fetch', nodeFetch);
+
+      const pending = syncCatalog();
+      await vi.advanceTimersByTimeAsync(2_000 + 4_000);
+      expect(await pending).toMatchObject({ ok: true, action: 'up_to_date' });
+      expect(nodeFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up after three attempts and reports the error', async () => {
+    initDb(':memory:');
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const nodeFetch = vi.fn(async () => { throw tlsFailure(); });
+      vi.stubGlobal('fetch', nodeFetch);
+
+      const pending = syncCatalog();
+      await vi.advanceTimersByTimeAsync(2_000 + 4_000);
+      expect(await pending).toMatchObject({ ok: false, action: 'error' });
+      expect(nodeFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

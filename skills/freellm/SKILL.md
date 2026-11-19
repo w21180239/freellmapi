@@ -50,6 +50,7 @@ For web research (not one known URL), run the built-in search and `freellm searc
 
 1. Run `freellm probe` (or `freellm probe <id>...` for your own candidates) and use the id it prints. A model's name does not show whether it reasons, so the 10-token probe decides.
 2. Pass that id as `--model` on every item. `auto` routes each call to a different model and often picks a reasoning model, which spends a small `--max-tokens` on thinking (`finish=length`, output like "I need to").
+   To pin one provider, prefix it: `--model groq:openai/gpt-oss-20b` routes only to that platform's row (no failover; unknown platform gives 404).
 3. Before more than 50 calls, run `freellm diag quota_outlook`; a pool showing `"status": "exhausted"` or `"warning": "low_balance"` for your model's platform needs another `--model`.
 
 ## Decide, image, audio

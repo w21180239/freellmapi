@@ -336,7 +336,7 @@ describe('Model Provider Actions API', () => {
         'test-key-groq-secret',
         [{ role: 'user', content: 'ping' }],
         modelId,
-        { max_tokens: 256, timeoutMs: 15000 },
+        { max_tokens: 256, timeoutMs: 45_000 },
       );
     });
 

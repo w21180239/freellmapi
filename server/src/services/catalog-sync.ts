@@ -57,6 +57,9 @@ export const MIN_CATALOG_VERSION = '2026.06.07';
 const SYNC_INTERVAL_MS = 12 * 60 * 60 * 1000; // twice daily
 const BOOT_DELAY_MS = 10 * 1000; // let the server settle before first sync
 const FETCH_TIMEOUT_MS = 20 * 1000;
+// A failed poll otherwise waits a full SYNC_INTERVAL_MS for the next try.
+const SYNC_FETCH_ATTEMPTS = 3;
+const SYNC_RETRY_BASE_MS = 2_000;
 
 // settings table keys
 export const SETTING_LICENSE_KEY = 'premium_license_key';
@@ -106,6 +109,20 @@ export async function catalogFetch(input: string | URL, init?: RequestInit): Pro
     if (!fallbackFetch || init?.signal?.aborted) throw err;
     console.warn(`[catalog-sync] ${describeFetchError(err)}; retrying through the desktop network stack`);
     return fallbackFetch(input, init);
+  }
+}
+
+/** The /v1/latest fetch: retries thrown errors (network, per-attempt timeout)
+ * with backoff; HTTP responses, 5xx included, return as-is. */
+async function fetchLatestWithRetry(url: URL, headers: Record<string, string>): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await catalogFetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    } catch (err) {
+      if (attempt >= SYNC_FETCH_ATTEMPTS) throw err;
+      console.warn(`[catalog-sync] attempt ${attempt}/${SYNC_FETCH_ATTEMPTS} failed: ${describeFetchError(err)}`);
+      await new Promise(resolve => setTimeout(resolve, SYNC_RETRY_BASE_MS * 2 ** (attempt - 1)));
+    }
   }
 }
 
@@ -1084,7 +1101,7 @@ export async function syncCatalog(force = false): Promise<SyncResult> {
     const url = new URL(`${catalogBaseUrl()}/v1/latest`);
     if (applied && !force) url.searchParams.set('since', applied);
 
-    const res = await catalogFetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    const res = await fetchLatestWithRetry(url, headers);
 
     if (res.status === 304) {
       setSetting(SETTING_LAST_SYNC_MS, String(Date.now()));
