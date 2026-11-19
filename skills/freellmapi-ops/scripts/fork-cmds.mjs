@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, die, git, log, parseArgs, run } from './lib.mjs';
+import { REPO, die, git, log, parseArgs, run, withSession } from './lib.mjs';
+import { providerReport } from './gui-cmds.mjs';
 import { build, restartServer } from './serve.mjs';
 
 const BRANCH = 'local/customizations';
@@ -13,7 +14,7 @@ const NON_BLOCKING = [
   { file: /proxy\.test\.ts$/, name: /sends a \*\.localhost subdomain direct/, why: 'Windows DNS cannot resolve *.localhost' },
 ];
 // Timing-sensitive: rerun alone; a pass there clears it.
-const FLAKY_FILE = /fallback-loop-hedge\.test\.ts$/;
+const FLAKY_FILE = /(fallback-loop-hedge|router-bandit)\.test\.ts$/;
 
 // Providers un-hidden locally; a new upstream `hidden: true` on them must be removed.
 const UNHIDDEN = ['aclide', 'speka', 'cerebras', 'clod', 'waterfall', 'mistral', 'ainative', 'jamai'];
@@ -123,6 +124,11 @@ export async function syncUpstream(argv) {
   else {
     const r = await restartServer(); // exits with the log tail if the server does not come back
     step('restart', `/health=200 after ${r.secs}s`);
+  }
+
+  if (!flags['no-restart']) {
+    log('\n== providers still needing a key');
+    await withSession(({ call }) => providerReport(call, { record: true }));
   }
 
   log('\n== summary');

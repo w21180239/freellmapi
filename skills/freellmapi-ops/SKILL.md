@@ -22,7 +22,7 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 | `serve restart [--no-build]` / `serve status` / `serve logs [-n 40]` | restart; port listener, pid file, health; server log tail | `serve: port 31415 listener pid P (node.exe); pid file P; /health=200` |
 | `serve autostart on\|off\|status` | Startup-folder `freellmapi-serve.vbs` runs `serve start --no-build` hidden at logon; `on` also removes other FreeLLMAPI/Electron autostart entries | `autostart: on (<path>)` |
 | `dev-restart` | force-build server and client, restart the server | `serve: /health=200 after Ns (pid P)` |
-| `sync-upstream [--skip-tests] [--no-restart]` | fetch, merge `upstream/main`, install, build, server + client tests, restart | last line `sync-upstream: done (N incoming)` plus the push command |
+| `sync-upstream [--skip-tests] [--no-restart]` | fetch, merge `upstream/main`, install, build, server + client tests, restart the headless server, list providers still needing a key | `providers: N without a key (M new upstream)`, then last line `sync-upstream: done (N incoming)` plus the push command |
 | `health` | status, key and model counts | `health=ok` |
 | `keys list [--platform a,b] [--json]` | id, platform, label, on/off, status, decrypt check, cooldowns; no key material | `keys: N keys, E enabled, 0 decrypt-failed` |
 | `keys add --platform P [--label L] [--proxy-url U]` | add a key; the secret comes from `FREELLMAPI_NEW_KEY` or stdin, never argv | `keys add: id N platform P (secret length L)` |
@@ -31,6 +31,7 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 | `usage [--range 24h\|7d\|30d\|all] [--top 15]` / `requests [--range 24h] [--status error] [--limit 20]` | totals plus per-provider split; recent request log | `usage 7d: N requests, success S%` / `requests: N of T in 24h` |
 | `settings get [name]` / `settings set <name> '<json>'` | non-secret settings (`unify`, `fusion`, `guardrails`, `output-limit`, ...); set takes the body shape `get` prints | `settings set <name>: <new value>` |
 | `premium status\|sync` | license and signed-catalog state; `sync` triggers a catalog sync now | `catalog: version V tier T last sync <ISO>` |
+| `providers` | providers without a key; `NEW` marks those added upstream in the last `sync-upstream` (state: `%APPDATA%\FreeLLMAPI\providers-seen.json`) | `providers: N without a key (M new upstream)` |
 | `inventory [--platform a,b] [--list-models] [--json]` | keys and models per platform, non-secret fields | `inventory: P platforms, K keys, M models` |
 | `add-models <file.json> [--dry-run] [--skip <regex>]` | batch add chat, media and embedding rows (`POST /api/models`, `/api/media`, `/api/embeddings`), then read back | `read-back present N/N` |
 | `enable-models --platform a,b [--apply]` | re-enable disabled chat models (dry-run by default) | `re-enabled N/N` |
