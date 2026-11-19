@@ -1,8 +1,9 @@
-// Fork-maintenance subcommands: sync-upstream, dev-restart, dist-win.
+// Fork-maintenance subcommands: sync-upstream, dev-restart.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, devRestart, die, git, log, parseArgs, run, stopApp } from './lib.mjs';
+import { REPO, die, git, log, parseArgs, run } from './lib.mjs';
+import { build, restartServer } from './serve.mjs';
 
 const BRANCH = 'local/customizations';
 const CONFLICTS_DOC = 'skills/freellmapi-ops/references/conflicts.md';
@@ -17,23 +18,9 @@ const FLAKY_FILE = /fallback-loop-hedge\.test\.ts$/;
 // Providers un-hidden locally; a new upstream `hidden: true` on them must be removed.
 const UNHIDDEN = ['aclide', 'speka', 'cerebras', 'clod', 'waterfall', 'mistral', 'ainative', 'jamai'];
 
-export async function devRestartCmd(argv) {
-  const { flags } = parseArgs(argv);
-  const r = await devRestart({ watch: !!flags.watch });
-  if (!r) process.exit(1);
-  log(`dev-restart: /health=200 after ${r.secs}s, listener pid ${r.pid}`);
-}
-
-export async function distWin() {
-  const stop = await stopApp();
-  log(`dist-win: ${stop.note}`);
-  const r = run('npm', ['run', 'desktop:dist:win'], { inherit: true });
-  if (r.code !== 0) die('dist-win: build failed');
-  const dir = path.join(REPO, 'desktop', 'dist-electron');
-  const exes = fs.readdirSync(dir).filter((f) => /^FreeLLMAPI-Setup-.*\.exe$/.test(f))
-    .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t);
-  log(`dist-win: ${exes[0] ? path.join(dir, exes[0].f) : 'no installer found'}`);
-  log('dist-win: the dev app is stopped; run `ops.mjs dev-restart` to resume daily use');
+export async function devRestartCmd() {
+  build({ force: true });
+  await restartServer();
 }
 
 function checkUnhidden() {
@@ -134,8 +121,7 @@ export async function syncUpstream(argv) {
 
   if (flags['no-restart']) step('restart', 'SKIPPED (--no-restart)');
   else {
-    const r = await devRestart();
-    if (!r) die('sync-upstream: dev app did not come back; see .scratch/dev-desktop.log');
+    const r = await restartServer(); // exits with the log tail if the server does not come back
     step('restart', `/health=200 after ${r.secs}s`);
   }
 

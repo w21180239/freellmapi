@@ -13,7 +13,7 @@ description: Use when a task can be offloaded to free models instead of spending
 node ~/.claude/skills/freellm/scripts/freellm.mjs <command> ...   # below: freellm
 ```
 
-Auth is automatic (a loopback desktop session; nothing is written to disk). `freellm --help` lists every flag. First check that the pool is up: `freellm diag healthcheck` (`"status": "ready"`).
+Auth is automatic (a loopback desktop session on the headless server; nothing is written to disk). `freellm --help` lists every flag. First check that the pool is up: `freellm diag healthcheck` (`"status": "ready"`).
 
 ## Where the material came from decides whether it can go
 
@@ -66,4 +66,4 @@ Free-model output is cheap and wrong often enough to matter. Check it before it 
 |---|---|---|
 | 1 | HTTP or upstream error (status and router text included) | 429 or "All models rate-limited": wait for the `retry after` time (tens of seconds) once, or switch `--model`; "No enabled API key": that model is switched off in the app, pick another; 400: fix the arguments |
 | 2 | Usage error | Fix the command |
-| 3 | Router unreachable | The FreeLLMAPI desktop app is not running. Tell the user; do not try to start it |
+| 3 | Router unreachable | The headless FreeLLMAPI server is down. Tell the user (owner fix: `ops.mjs serve start`, freellmapi-ops skill); do not start it from here |

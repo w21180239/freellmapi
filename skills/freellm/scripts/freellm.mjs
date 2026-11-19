@@ -93,7 +93,7 @@ async function http(method, p, { body, headers = {}, raw = false } = {}) {
     res = await fetch(BASE + p, { method, headers, body, signal: AbortSignal.timeout(TIMEOUT) });
   } catch (e) {
     if (e.name === 'TimeoutError') throw new Error(`timeout after ${TIMEOUT} ms: ${method} ${p}`);
-    throw new ReachError(`cannot reach FreeLLMAPI at ${BASE} (${e.cause?.code ?? e.message}); is the desktop app running?`);
+    throw new ReachError(`cannot reach FreeLLMAPI at ${BASE} (${e.cause?.code ?? e.message}); the headless server is down (owner starts it: freellmapi-ops ops.mjs serve start)`);
   }
   if (!res.ok) {
     const text = await res.text();

@@ -1,11 +1,10 @@
-// Shared helpers for ops.mjs: repo paths, process runner, desktop-session client, app lifecycle.
-import { spawn, spawnSync } from 'node:child_process';
+// Shared helpers for ops.mjs: repo paths, process runner, desktop-session client, port lookup.
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-export const SCRATCH = path.join(REPO, '.scratch');
 export const APPDATA_DIR = path.join(process.env.APPDATA ?? '', 'FreeLLMAPI');
 const isWin = process.platform === 'win32';
 
@@ -74,7 +73,7 @@ export async function withSession(fn) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     signal: AbortSignal.timeout(15000),
   });
-  if (!res.ok) die(`desktop-session failed: HTTP ${res.status} (is the app running? try: node skills/freellmapi-ops/scripts/ops.mjs dev-restart)`);
+  if (!res.ok) die(`desktop-session failed: HTTP ${res.status} (is the server running? try: node skills/freellmapi-ops/scripts/ops.mjs serve start)`);
   const { token } = await res.json();
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   async function call(method, route, body, timeoutMs = 30000) {
@@ -99,8 +98,8 @@ export async function withSession(fn) {
   }
 }
 
-/* ---- app lifecycle (Windows) ---- */
 
+/** Pid listening on the app port (Windows netstat), or null. */
 export function listenerPid(port = appPort()) {
   const r = run('netstat', ['-ano', '-p', 'tcp']);
   for (const line of r.out.split(/\r?\n/)) {
@@ -109,46 +108,9 @@ export function listenerPid(port = appPort()) {
   }
   return null;
 }
-function processName(pid) {
+
+export function processName(pid) {
   const r = run('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH']);
   const m = r.out.match(/^"([^"]+)"/m);
   return m ? m[1] : null;
-}
-
-/** Stop whatever app owns the port (dev Electron or the installed build). Refuses other processes. */
-export async function stopApp() {
-  const pid = listenerPid();
-  if (!pid) return { stopped: false, note: 'nothing listening' };
-  const name = processName(pid);
-  if (!/^(electron|FreeLLMAPI)\.exe$/i.test(name ?? '')) {
-    die(`port ${appPort()} is held by pid ${pid} (${name ?? 'unknown'}); stop it manually`);
-  }
-  run('taskkill', ['/PID', String(pid), '/T', '/F']);
-  for (let i = 0; i < 20; i++) {
-    if (!listenerPid()) return { stopped: true, note: `stopped ${name} pid ${pid}` };
-    await sleep(1000);
-  }
-  die(`pid ${pid} still holds port ${appPort()} after 20s`);
-}
-
-/** Restart the dev app from this checkout, detached; returns seconds until /health = 200 or null. */
-export async function devRestart({ watch = false, timeoutSec = 120 } = {}) {
-  const stop = await stopApp();
-  log(`dev-restart: ${stop.note}`);
-  fs.mkdirSync(SCRATCH, { recursive: true });
-  const logPath = path.join(SCRATCH, 'dev-desktop.log');
-  const fd = fs.openSync(logPath, 'w');
-  const script = path.join(REPO, 'scripts', 'dev-desktop.ps1');
-  const args = ['-NoProfile', '-File', script, ...(watch ? ['-Watch'] : [])];
-  // Not detached: a console-less (DETACHED_PROCESS) pwsh exits silently with no output.
-  const child = spawn('pwsh', args, { cwd: REPO, windowsHide: true, stdio: ['ignore', fd, fd] });
-  child.unref();
-  log(`dev-restart: launched dev-desktop.ps1 (log: .scratch/dev-desktop.log)`);
-  const secs = await waitForHealth(timeoutSec);
-  if (secs === null) {
-    const tail = fs.readFileSync(logPath, 'utf8').split(/\r?\n/).slice(-15).join('\n');
-    console.error(`dev-restart: /health did not return 200 within ${timeoutSec}s; log tail:\n${tail}`);
-    return null;
-  }
-  return { secs, pid: listenerPid() };
 }

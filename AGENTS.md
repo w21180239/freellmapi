@@ -12,25 +12,19 @@ This checkout is the owner's personal fork of https://github.com/tashfeenahmed/f
 
 ## Running it day to day
 
-Dev mode is the default way to run this fork — no repackaging, no reinstall:
+The fork runs headless: plain node on `server/dist`, bound to 127.0.0.1:31415, data in `%APPDATA%\FreeLLMAPI`, started at logon by a Startup-folder `.vbs`. The web UI stays at http://127.0.0.1:31415 for occasional use; everything routine goes through the CLI.
 
-```powershell
-powershell -NoProfile -File scripts\dev-desktop.ps1 -Watch
-```
+- `node skills/freellmapi-ops/scripts/ops.mjs serve start|stop|status|logs`; `serve autostart on|off|status`.
+- Source edits: `dev-restart` rebuilds server and client (`tsc --noEmitOnError`, so a broken tree keeps the last good dist) and restarts.
+- Logs: `%APPDATA%\FreeLLMAPI\logs\freeapi.log`.
 
-- Electron loads this checkout (`client/dist` + `desktop/build/server.mjs`), so source edits show up without building an installer.
-- `-Watch` rebuilds `client/dist` on save; press Ctrl+R in the window to pick it up. Server edits need a restart of the script (~15 s) because the server is bundled into the Electron process.
-- The script drops an inherited `NODE_ENV=production` (which would demand a 64-char `ENCRYPTION_KEY` and refuse to boot) and stops the packaged app, because both use `%APPDATA%\FreeLLMAPI` and port 31415.
-- Logs: `.scratch\dev-desktop.log` (launcher/stdout) and `%APPDATA%\FreeLLMAPI\logs\freeapi.log` (server).
-
-The installed build (`FreeLLMAPI-Setup-<version>.exe`) is only for handing the app to another machine or for keeping it out of a dev checkout; it is not the daily driver.
+The Electron installer (`npm run desktop:dist:win`) is only for handing the app to another machine; it shares `%APPDATA%\FreeLLMAPI` and port 31415, so stop the headless server before running it.
 
 ## Routine
 
 Operator skill: `skills/freellmapi-ops/SKILL.md` (conflict table in its `references/conflicts.md`). Everything runs through `node skills/freellmapi-ops/scripts/ops.mjs <subcommand>`:
 
-1. `sync-upstream`: fetch, merge `upstream/main` into `local/customizations`, install, build, server and client tests, restart the dev app. A conflict stops it; resolve per the table, commit, rerun.
-2. `dev-restart [--watch]`: restart the dev app and wait for 127.0.0.1:31415/health = 200.
-3. `dist-win`: build the installer, only when asked for one.
-4. Catalog: `health`, `inventory`, `add-models`, `test-sample`, `lists`.
-5. Push `local/customizations` to `origin`: `git push origin local/customizations`.
+1. `sync-upstream`: fetch, merge `upstream/main` into `local/customizations`, install, build, server and client tests, restart the headless server. A conflict stops it; resolve per the table, commit, rerun.
+2. `dev-restart`: rebuild and restart, wait for 127.0.0.1:31415/health = 200.
+3. Catalog: the signed catalog is a baseline; `lists` adds, blocks, claims and releases rows of any modality on top of it. Also `health`, `inventory`, `add-models`, `test-sample`.
+4. Push `local/customizations` to `origin`: `git push origin local/customizations`.

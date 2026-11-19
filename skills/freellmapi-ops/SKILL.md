@@ -1,6 +1,6 @@
 ---
 name: freellmapi-ops
-description: Use when maintaining the personal FreeLLMAPI fork (syncing upstream into local/customizations, merge conflicts, restarting or rebuilding the desktop app from source, building the Windows installer) or managing its provider and model catalog through the local management API (inventory, missing models, add-models, test sample, 429 or "No enabled API key" errors, allowlist/blocklist).
+description: Use when maintaining the personal FreeLLMAPI fork (syncing upstream into local/customizations, merge conflicts, starting, stopping, rebuilding or autostarting the headless server) or operating it from the CLI through the local management API (provider keys, enabling or disabling models of any modality, usage and request log, settings, catalog sync, inventory, missing models, add-models, test sample, 429 or "No enabled API key" errors, allowlist/blocklist).
 ---
 
 # FreeLLMAPI ops
@@ -11,23 +11,33 @@ Rare tasks, so run the script and read its output. One entry for everything, fro
 node skills/freellmapi-ops/scripts/ops.mjs <subcommand> [options]
 ```
 
-Fork model, routine and daily-run notes: `AGENTS.md`. The app runs from this checkout in dev mode; the installer is only for handing the app to another machine.
+Fork model and routine: `AGENTS.md`. The router runs headless from this checkout: plain `node server/dist/index.js` on 127.0.0.1:31415, data in `%APPDATA%\FreeLLMAPI`, dashboard at http://localhost:31415. The Electron app is not used.
 
 ## Subcommands
 
 | Subcommand | Job | Done looks like |
 |---|---|---|
+| `serve start [--no-build]` | build server/client if sources are newer, start the server detached and hidden, wait for health | `serve: /health=200 after Ns (pid P)` |
+| `serve stop` | stop whatever holds port 31415 (headless node, dev Electron, installed `FreeLLMAPI.exe`) | `serve: stopped <exe> pid P` or `serve: nothing running` |
+| `serve restart [--no-build]` / `serve status` / `serve logs [-n 40]` | restart; port listener, pid file, health; server log tail | `serve: port 31415 listener pid P (node.exe); pid file P; /health=200` |
+| `serve autostart on\|off\|status` | Startup-folder `freellmapi-serve.vbs` runs `serve start --no-build` hidden at logon; `on` also removes other FreeLLMAPI/Electron autostart entries | `autostart: on (<path>)` |
+| `dev-restart` | force-build server and client, restart the server | `serve: /health=200 after Ns (pid P)` |
 | `sync-upstream [--skip-tests] [--no-restart]` | fetch, merge `upstream/main`, install, build, server + client tests, restart | last line `sync-upstream: done (N incoming)` plus the push command |
-| `dev-restart [--watch]` | stop the app on the port, start `scripts/dev-desktop.ps1` detached, wait for health | `dev-restart: /health=200 after Ns` |
-| `dist-win` | stop the app, `npm run desktop:dist:win` | path of `FreeLLMAPI-Setup-<version>.exe` |
 | `health` | status, key and model counts | `health=ok` |
+| `keys list [--platform a,b] [--json]` | id, platform, label, on/off, status, decrypt check, cooldowns; no key material | `keys: N keys, E enabled, 0 decrypt-failed` |
+| `keys add --platform P [--label L] [--proxy-url U]` | add a key; the secret comes from `FREELLMAPI_NEW_KEY` or stdin, never argv | `keys add: id N platform P (secret length L)` |
+| `keys enable\|disable <id...>\|--platform P` / `keys delete <id...>` | toggle or delete keys | `keys <action>: N key(s)` |
+| `models list\|enable\|disable [--kind K] [--platform a,b] [ids...] [--disabled]` | any modality: `chat` (default), `image`, `video`, `audio`, `transcription`, `embedding`, `search`, `decision`; ids from `models list` | `models <action>: N <kind> row(s) changed` |
+| `usage [--range 24h\|7d\|30d\|all] [--top 15]` / `requests [--range 24h] [--status error] [--limit 20]` | totals plus per-provider split; recent request log | `usage 7d: N requests, success S%` / `requests: N of T in 24h` |
+| `settings get [name]` / `settings set <name> '<json>'` | non-secret settings (`unify`, `fusion`, `guardrails`, `output-limit`, ...); set takes the body shape `get` prints | `settings set <name>: <new value>` |
+| `premium status\|sync` | license and signed-catalog state; `sync` triggers a catalog sync now | `catalog: version V tier T last sync <ISO>` |
 | `inventory [--platform a,b] [--list-models] [--json]` | keys and models per platform, non-secret fields | `inventory: P platforms, K keys, M models` |
-| `add-models <file.json> [--dry-run] [--skip <regex>]` | batch `POST /api/models`, then read back | `read-back present N/N` |
+| `add-models <file.json> [--dry-run] [--skip <regex>]` | batch add chat, media and embedding rows (`POST /api/models`, `/api/media`, `/api/embeddings`), then read back | `read-back present N/N` |
 | `enable-models --platform a,b [--apply]` | re-enable disabled chat models (dry-run by default) | `re-enabled N/N` |
 | `test-sample --platform a,b\|--all [-n 2] [--pace 120] [--seed N]` | live-test random enabled models, one queue per upstream account | `test-sample: Q queues; ok=.. rate-limit=..` |
-| `lists list\|pin\|unpin\|block\|unblock ...` | allow/blocklist on top of the signed catalog (`scripts/catalog-lists.mjs`) | `<cmd> <kind> <platform>: N changed` |
+| `lists list\|add\|block\|unblock\|claim\|release\|overlap ...` | local overlay on the signed catalog for every modality (`/api/catalog/*` plus the per-kind routes) | `<cmd> <kind> <platform>/<modelId>: ok` / `lists: N user rows, M blocks` |
 
-`add-models` input: JSON array of `{platform, modelId, displayName?, contextWindow?, supportsTools?, supportsVision?}`. `lists` kinds and arguments: `node scripts/catalog-lists.mjs` header. `pin` keeps media/embedding rows across catalog prunes; `block` tombstones and deletes a row so no catalog sync re-adds it; chat rows added by hand (`source=user`) already win over the catalog.
+`add-models` input: JSON array of `{platform, modelId, modality?, displayName?, ...}`; no `modality` = chat (`contextWindow?, supportsTools?, supportsVision?`), `image|audio|video|transcription|search|decision` = media (`priority?, quotaLabel?, meta?`), `embedding` = embedding (`dimensions`, `family?`). `lists` kinds are `chat`, `media`, `embedding`; `ops.mjs lists` prints the arguments. Rows with `source=user` are the owner's and no catalog sync updates or prunes them; `add` creates one, `claim` takes a catalog row over, `release` hands it back (refused unless the applied catalog lists it), `block` deletes for good with a user tombstone, `overlap` shows user rows the catalog also lists.
 
 ## Sync upstream
 
@@ -48,14 +58,17 @@ Fork model, routine and daily-run notes: `AGENTS.md`. The app runs from this che
   - Two `rate-limit` results in a row stop that queue; retest after the cooldown.
 - Tokens, keys and whole key objects stay out of output and files; `ops.mjs` keeps the session token in memory and logs out on exit.
 
-## Installer
+## Headless server
 
-`dist-win` stops the app first (a running exe locks the build) and leaves it stopped; `dev-restart` resumes daily use. Output: `desktop/dist-electron/`.
+1. First setup on a machine: `serve stop` (ends a running Electron app), `serve start`, `serve autostart on`. Done: `autostart: on (...)` and `serve status` showing `node.exe` with `/health=200`.
+2. After source edits: `dev-restart`. Client edits show on browser reload.
+3. Auth: `serve` starts the server with `FREEAPI_DESKTOP=1` and `HOST=127.0.0.1`, so `ops.mjs` and `freellm` mint a loopback desktop session (`POST /api/auth/desktop-session`) in memory and log out on exit. The server refuses that session for a non-localhost `Host`, a cross-site `Origin`/`Sec-Fetch-Site`, or a forwarded hop (403). Nothing is written to disk.
+4. Windows installer, only when asked for one: `npm run desktop:dist:win` (output `desktop/dist-electron/`).
 
 ## Gotchas
 
-- Dev launches run with `NODE_ENV` unset (`dev-desktop.ps1` drops an inherited `production`, which demands a 64-char `ENCRYPTION_KEY`).
-- Dev app and installed app share `%APPDATA%\FreeLLMAPI` and port 31415, so one runs at a time; `dev-restart` stops whichever holds the port.
-- Logs: `.scratch/dev-desktop.log` (launcher) and `%APPDATA%\FreeLLMAPI\logs\freeapi.log` (server).
-- Server edits need `dev-restart` (the server is bundled into the Electron process); client edits show after `dev-restart --watch` plus Ctrl+R in the window.
+- `serve` runs node with `NODE_ENV` unset and `ENCRYPTION_KEY` removed, so provider keys decrypt with `%APPDATA%\FreeLLMAPI\.encryption-key`, the same key file the Electron app used. `production` would demand a 64-char `ENCRYPTION_KEY`; `development` skips migrations.
+- A failing server build (`build: server failed`) keeps the last good `server/dist` (`tsc --noEmitOnError`); `serve start` then stops. Fix the build, or run the last good dist with `serve start --no-build`.
+- Electron, the installed app and `serve` share `%APPDATA%\FreeLLMAPI` and port 31415; `serve stop` ends any of them.
+- Logs: `%APPDATA%\FreeLLMAPI\logs\freeapi.log` (stdout and stderr, rotated to `.1` past 20 MB at start). Pid file: `%APPDATA%\FreeLLMAPI\serve.pid`.
 - Chat calls through the gateway, search, image, audio: use the `freellm` skill.
