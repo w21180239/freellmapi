@@ -31,6 +31,7 @@ import {
   getModelForbiddenCooldownMs,
   learnLimitFromError,
   learnContextWindowFromError,
+  pacificMidnight,
   type CooldownDecision,
   type CooldownSource,
 } from '../services/ratelimit.js';
@@ -274,23 +275,10 @@ export function msUntilNextUtcMidnight(now = Date.now()): number {
   return Math.max(next - now, 60_000);
 }
 
-const pacificDate = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric',
-});
-const pacificHour = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/Los_Angeles', hour: 'numeric', hourCycle: 'h23',
-});
-
 /** Gemini daily quotas reset at midnight Pacific, including DST transitions.
  * https://ai.google.dev/gemini-api/docs/rate-limits */
 export function msUntilNextPacificMidnight(now = Date.now()): number {
-  const parts = pacificDate.formatToParts(now);
-  const part = (name: string) => Number(parts.find(p => p.type === name)!.value);
-  // 08:00 UTC on the next Pacific date is either midnight (PST) or 01:00
-  // (PDT). Read the offset on that date, not now: DST days have 23/25 hours.
-  const candidate = Date.UTC(part('year'), part('month') - 1, part('day') + 1, 8);
-  const midnight = candidate - Number(pacificHour.format(candidate)) * 3_600_000;
-  return Math.max(midnight - now, 60_000);
+  return Math.max(pacificMidnight(now, 1) - now, 60_000);
 }
 
 /**
@@ -530,7 +518,12 @@ export function recordRetryableFailure(route: RouteResult, err: any, state: Fall
   // failover hop per key. Key-scoped failures (auth/quota) stay on the
   // single-key path, and the per-key cooldown below is still the only thing
   // that outlives the request.
-  if (isProviderLevelError(err)) {
+  //
+  // Custom relays are exempt (#2023): every relay shares the one platform id
+  // 'custom' (#651), so one relay's 5xx/timeout must not rule out different
+  // endpoints for the rest of the request. Their failure isolation stays
+  // key-scoped (state.skipKeys and benchKey).
+  if (isProviderLevelError(err) && route.platform !== 'custom') {
     state.skipPlatforms.add(route.platform);
   }
   // An adapter's own "cannot serve this" rejection (#1876: Gizmo asked for
@@ -622,7 +615,9 @@ export function recordRetryableFailure(route: RouteResult, err: any, state: Fall
   // be a different account, but with the budget already spent on this one
   // the next PROVIDER is the better hop.
   if (isAccountSuspendedError(err)) {
-    state.skipPlatforms.add(route.platform);
+    if (route.platform !== 'custom') {
+      state.skipPlatforms.add(route.platform);
+    }
     benchKeyAcrossPlatform(route, decision.durationMs, decision.source, state, 'reports the account suspended');
   } else if (isPaymentRequiredError(err)) {
     // A 402 is the ACCOUNT's balance, not one model's (#1239: one broke

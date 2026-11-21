@@ -6,6 +6,7 @@ import { encrypt } from '../../lib/crypto.js';
 import { clearAllCooldowns } from '../../services/ratelimit.js';
 import { mintDashboardToken } from '../helpers/auth.js';
 import { seedDecisionModels } from '../helpers/decision-models.js';
+import { stubPublicDns } from '../helpers/dns.js';
 
 // HTTP surface of decision models: POST /v1/decisions (and the /v1/systemone
 // alias) and GET /v1/decisions/models for API callers, /api/decisions/* for the
@@ -213,6 +214,34 @@ describe('decision routes', () => {
     expect(res.body).toMatchObject({ success: true, provider: 'beatapi', model: '@cf/cloudflare/clef-flash' });
     expect(called).toHaveLength(1);
     expect(called[0]).toContain('beatapi');
+  });
+
+  // A custom relay row (#1777) is pinned by row id the same way.
+  it('pins the test to a clicked custom relay row', async () => {
+    // The made-up relay host must resolve for the URL guard (#1875).
+    stubPublicDns();
+    const created = await call(app, 'POST', '/api/media/custom', {
+      body: { baseUrl: 'https://relay.example.com/v1', model: '@cf/cloudflare/clef-flash', modality: 'decision', apiKey: 'relay-secret' },
+    });
+    expect(created.status).toBe(201);
+    const list = await call(app, 'GET', '/api/decisions/models');
+    const relay = list.body.find((m: { platform: string }) => m.platform === 'custom');
+    expect(relay).toBeTruthy();
+
+    const called: string[] = [];
+    globalThis.fetch = vi.fn((url: unknown) => {
+      called.push(String(url));
+      return Promise.resolve(new Response(
+        JSON.stringify({ decision: 'positive', confidence: 0.9, reasoning: 'The review praises the order.' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ));
+    }) as unknown as typeof fetch;
+
+    const res = await call(app, 'POST', `/api/decisions/models/${relay.id}/test`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, provider: 'custom', answer: 'positive' });
+    expect(called).toEqual(['https://relay.example.com/v1/decide']);
   });
 
   it('refuses to test a model that is turned off, and an id that is not one', async () => {
