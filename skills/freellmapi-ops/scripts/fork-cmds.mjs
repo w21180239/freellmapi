@@ -67,6 +67,17 @@ function classifyFailures(res, cwd) {
   return { blocking, waived };
 }
 
+// Scheduler precheck: exit 0 when a sync has work (new upstream commits, or HEAD not yet
+// verified), 1 when there is nothing to do, 2 when git fails.
+export function upstreamPending() {
+  if (git('fetch', '-q', 'upstream').code !== 0) { log('upstream-pending: git fetch upstream failed'); process.exit(2); }
+  const incoming = Number(git('rev-list', '--count', 'HEAD..upstream/main').stdout.trim());
+  const head = git('rev-parse', 'HEAD').stdout.trim();
+  const unverified = readVerified() !== head;
+  log(`upstream-pending: ${incoming} incoming, HEAD ${head.slice(0, 8)} ${unverified ? 'unverified' : 'verified'}`);
+  process.exit(incoming > 0 || unverified ? 0 : 1);
+}
+
 export async function syncUpstream(argv) {
   const { flags } = parseArgs(argv);
   const steps = [];

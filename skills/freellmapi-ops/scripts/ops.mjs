@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // FreeLLMAPI fork operator entry. Run from anywhere: node skills/freellmapi-ops/scripts/ops.mjs <subcommand> [options]
 import { addModels, enableModels, health, inventory, lists, testSample } from './api-cmds.mjs';
-import { devRestartCmd, syncUpstream } from './fork-cmds.mjs';
+import { devRestartCmd, syncUpstream, upstreamPending } from './fork-cmds.mjs';
 import { keys, models, premium, providers, requests, settings, usage } from './gui-cmds.mjs';
 import { serve } from './serve.mjs';
 
@@ -10,6 +10,7 @@ const USAGE = `subcommands:
   serve autostart <on|off|status>          start the headless server at Windows logon
   dev-restart                              rebuild server + client, restart the headless server
   sync-upstream [--full] [--skip-tests] [--no-restart] [--no-push]   merge, build, test, restart, push (~90 s; ~3 s when nothing is new)
+  upstream-pending                         scheduler precheck: exit 0 when sync-upstream has work, 1 when not
   health                                   app status, key/model counts (read-only)
   inventory [--platform a,b] [--list-models] [--json]   keys and models per platform, non-secret fields
   keys <list|add|enable|disable|delete> [--platform P] [--label L] [ids...]   secret for add: FREELLMAPI_NEW_KEY or stdin
@@ -26,7 +27,7 @@ const USAGE = `subcommands:
 
 const [cmd, ...rest] = process.argv.slice(2);
 const table = {
-  serve, 'dev-restart': devRestartCmd, 'sync-upstream': syncUpstream,
+  serve, 'dev-restart': devRestartCmd, 'sync-upstream': syncUpstream, 'upstream-pending': upstreamPending,
   health, inventory, keys, models, providers, usage, requests, settings, premium,
   'add-models': addModels, 'enable-models': enableModels, 'test-sample': testSample, lists,
 };

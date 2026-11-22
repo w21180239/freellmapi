@@ -46,6 +46,11 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 2. Exit at a conflict list: resolve per [references/conflicts.md](references/conflicts.md), `git add -A`, `git commit --no-edit`, rerun `sync-upstream`. A rerun after a conflict commit builds, tests and restarts (HEAD differs from the last verified one); with nothing new since the last green run it skips straight to push in ~3 s, `--full` forces the whole pipeline.
 3. Test failures: server tests run in parallel (~35 s); each failing file gets one serial rerun and a pass there is listed as `non-blocking`, as is `proxy.test.ts > sends a *.localhost subdomain direct` (Windows DNS). A failure that survives the rerun stops the sync; fix it or ask the owner.
 4. A green run pushes `origin/local/customizations` itself (owner standing order); `--no-push` holds it.
+5. New providers: the `providers` block at the end of the run lists every provider without a key (`NEW` = added upstream). Configure each one: sign up in the Orca browser with "Continue with Google" on the owner's personal Gmail (`lw21180239@gmail.com`), create the key, add it through stdin, register its models when the catalog has none (`add-models`, ids from the adapter or its public `/v1/models`), then `freellm ask --model <platform>:<id>` until it answers. Flow details and known gates: [references/catalog.md](references/catalog.md) "Provider notes". Stop on a step only the owner can do (phone or SMS verification, payment card, captcha) and list it in the report.
+
+## Scheduled run
+
+Orca automation `freellmapi daily sync` runs daily in the main checkout. Its precheck is `ops.mjs upstream-pending` (exit 0 = new upstream commits or an unverified HEAD), so a quiet day starts no agent. The run follows "Sync upstream" steps 1-5 end to end without asking, then ends with a Chinese report: incoming commits, conflicts and how each was resolved, test summary line, push hash, each new provider's status (configured and tested, or the owner step it waits on).
 
 ## Catalog work
 
