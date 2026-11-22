@@ -42,6 +42,7 @@ Management API facts and hard-won provider notes. Verified on desktop 0.16.26 (2
 - Provider-key swap without the key entering the transcript: click the site's copy button, read the clipboard in a local script (`Get-Clipboard -Raw`), `PATCH /api/keys/:id {key}`, clear the clipboard, print only the length.
 - A provider that threw errors from a custom adapter can be fixed in this checkout, then upstreamed from a branch cut from `upstream/main` (see `AGENTS.md`, fork model).
 
+- New-provider sign-up runs in the Orca browser with "Continue with Google" on the owner's Gmail. When `orca click` fails with "could not protect the user's keyboard focus", `orca focus --element <ref>` then `orca keypress --key Enter` goes through. The key goes in through stdin (`printf %s "$K" | ops.mjs keys add --platform P`); a catalog-less provider then needs `add-models` with the id from its public `/v1/models`. Puter blocks every API call (`phone_verification_required`) until the account verifies a phone number, which only the owner can do.
 ## Researching missing models
 
 1. `ops.mjs inventory` lists platforms with their keys and models. Search, chat, image, audio, embedding and decision providers are separate; a search key with zero chat models is expected.
