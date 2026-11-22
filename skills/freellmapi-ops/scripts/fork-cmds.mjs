@@ -50,7 +50,9 @@ function vitestFailures(cwd, args, label) {
 }
 
 // Server tests run in parallel; files that fail there get one serial rerun, and a pass
-// there clears them (timing and shared-state flakes under load).
+// there clears them (timing and shared-state flakes under load). The rerun lifts the 5 s
+// default timeout: router-bandit's 500-pick loops take 6-7 s on this machine even on
+// pristine upstream.
 function classifyFailures(res, cwd) {
   const blocking = []; const waived = [];
   const rest = [];
@@ -59,7 +61,7 @@ function classifyFailures(res, cwd) {
     if (known) waived.push(`${f.name} (${known.why})`); else rest.push(f);
   }
   for (const file of [...new Set(rest.map((f) => f.file))]) {
-    const again = vitestFailures(cwd, ['--pool=forks', '--fileParallelism=false', file], 'rerun');
+    const again = vitestFailures(cwd, ['--pool=forks', '--fileParallelism=false', '--testTimeout=30000', file], 'rerun');
     const names = rest.filter((f) => f.file === file).map((f) => f.name);
     if (!again.crashed && again.failed.length === 0) names.forEach((n) => waived.push(`${n} (passed on serial rerun)`));
     else names.forEach((n) => blocking.push(`${file}: ${n}`));
