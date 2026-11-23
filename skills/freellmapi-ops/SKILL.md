@@ -23,6 +23,7 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 | `serve autostart on\|off\|status` | Startup-folder `freellmapi-serve.vbs` runs `serve start --no-build` hidden at logon; `on` also removes other FreeLLMAPI/Electron autostart entries | `autostart: on (<path>)` |
 | `dev-restart` | force-build server and client, restart the server | `serve: /health=200 after Ns (pid P)` |
 | `sync-upstream [--full] [--skip-tests] [--no-restart] [--no-push]` | fetch, merge `upstream/main`, install (only when a manifest or lockfile moved), build, parallel server + client tests, restart the headless server, list providers still needing a key, push `origin/local/customizations` (skipped with `--skip-tests`) | `providers: N without a key (M new upstream)`, `push: origin/local/customizations at <sha>`, last line `sync-upstream: done (N incoming)` |
+| `self-close [--automation <id>] [--max-wait 3600]` | scheduled run only: detached watcher closes this Orca terminal tab after the automation run is recorded (default automation `freellmapi daily sync`) | `self-close: watcher pid P closes term_… once the run is recorded` |
 | `health` | status, key and model counts | `health=ok` |
 | `keys list [--platform a,b] [--json]` | id, platform, label, on/off, status, decrypt check, cooldowns; no key material | `keys: N keys, E enabled, 0 decrypt-failed` |
 | `keys add --platform P [--label L] [--proxy-url U]` | add a key; the secret comes from `FREELLMAPI_NEW_KEY` or stdin, never argv | `keys add: id N platform P (secret length L)` |
@@ -51,6 +52,8 @@ Fork model and routine: `AGENTS.md`. The router runs headless from this checkout
 ## Scheduled run
 
 Orca automation `freellmapi daily sync` runs daily in the main checkout. Its precheck is `ops.mjs upstream-pending` (exit 0 = new upstream commits or an unverified HEAD), so a quiet day starts no agent. The run follows "Sync upstream" steps 1-5 end to end without asking, then ends with a Chinese report: incoming commits, conflicts and how each was resolved, test summary line, push hash, each new provider's status (configured and tested, or the owner step it waits on).
+
+Last tool call, right before that report: `ops.mjs self-close` (prints `self-close: watcher pid P closes term_… once the run is recorded`). Its detached watcher waits until Orca has captured the run's output snapshot (when the turn ends), then closes the session's terminal tab, so a finished run holds no resources. Owner-only steps go in the report; the session does not stay open waiting for them. Watcher log: `%APPDATA%\FreeLLMAPI\logs\self-close.log`.
 
 ## Catalog work
 
