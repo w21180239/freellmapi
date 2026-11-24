@@ -10,7 +10,7 @@ description: Use when a task can be offloaded to free models instead of spending
 `freellm` is a CLI over the local FreeLLMAPI router: about 1,000 free chat models from third-party providers, plus search, decision, embedding, rerank, image and audio pools. The main session stays on its own model and sends cheap, checkable side work to the free pool.
 
 ```
-node ~/.claude/skills/freellm/scripts/freellm.mjs <command> ...   # below: freellm
+node <this skill dir>/scripts/freellm.mjs <command> ...   # below: freellm
 ```
 
 Auth is automatic (a loopback desktop session on the headless server; nothing is written to disk). `freellm --help` lists every flag. First check that the pool is up: `freellm diag healthcheck` (`"status": "ready"`).
@@ -21,6 +21,7 @@ Every request leaves the machine for third-party free tiers, and those providers
 
 - **The material came from an employer, a client, or paid or NDA work, or is marked internal or confidential:** do the task in the main session. A redacted copy is still that material, so redacting does not make it sendable.
 - **The material is public, or text you wrote for this purpose:** send it. When unsure of the origin, treat it as internal.
+- **`FREELLM_ALLOWED_ROOTS` is set** (path-delimiter list): the CLI refuses to run from a cwd outside those trees, and on machines with the `freellm-scope-gate` hook, Claude tool calls that mention the router are blocked there too. Do the task in the main session instead of working around it.
 - **You decline or redact:** name a secret by its type ("the DB password in line 5"). Never repeat its value in your reply.
 
 ## Quick reference

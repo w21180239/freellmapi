@@ -74,6 +74,12 @@ Last tool call, right before that report: `ops.mjs self-close` (prints `self-clo
 3. Auth: `serve` starts the server with `FREEAPI_DESKTOP=1` and `HOST=127.0.0.1`, so `ops.mjs` and `freellm` mint a loopback desktop session (`POST /api/auth/desktop-session`) in memory and log out on exit. The server refuses that session for a non-localhost `Host`, a cross-site `Origin`/`Sec-Fetch-Site`, or a forwarded hop (403). Nothing is written to disk.
 4. Windows installer, only when asked for one: `npm run desktop:dist:win` (output `desktop/dist-electron/`).
 
+## macOS
+
+- Data dir `~/Library/Application Support/FreeLLMAPI` (same files as `%APPDATA%\FreeLLMAPI`); port lookup via `lsof`, stop via a process-group SIGTERM.
+- Run `ops.mjs` with a Node inside `.nvmrc`'s range (Homebrew `node` may be newer than `engines` allows); `serve autostart on` pins that Node's absolute path.
+- `serve autostart on` writes and bootstraps `~/Library/LaunchAgents/com.freellmapi.serve.plist` (RunAtLoad, AbandonProcessGroup, carries `NODE_EXTRA_CA_CERTS` from the calling shell for a corporate TLS proxy). Launchd output: `<data dir>/logs/launchd.log`.
+
 ## Gotchas
 
 - `serve` runs node with `NODE_ENV` unset and `ENCRYPTION_KEY` removed, so provider keys decrypt with `%APPDATA%\FreeLLMAPI\.encryption-key`, the same key file the Electron app used. `production` would demand a 64-char `ENCRYPTION_KEY`; `development` skips migrations.

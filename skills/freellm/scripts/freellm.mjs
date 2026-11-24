@@ -43,7 +43,7 @@ Commands:
       usage_summary takes --range 24h|7d|30d
 
 Global: --json (raw JSON response)  --timeout MS (default 120000)
-Env: FREELLMAPI_URL (default: port from %APPDATA%/FreeLLMAPI/config.json),
+Env: FREELLMAPI_URL (default: port from <data dir>/FreeLLMAPI/config.json, else 31415),
      FREELLMAPI_API_KEY (used only when the router refuses desktop sign-in)
 Exit codes: 0 ok, 1 request/upstream error, 2 usage error, 3 router unreachable`;
 
@@ -74,8 +74,10 @@ function parseArgs(argv) {
 
 function baseUrl() {
   if (process.env.FREELLMAPI_URL) return process.env.FREELLMAPI_URL.replace(/\/+$/, '').replace(/\/v1$/, '');
-  const appdata = process.env.APPDATA ?? path.join(os.homedir(), '.config');
-  let port = 3001;
+  const appdata = process.platform === 'win32' ? (process.env.APPDATA ?? '')
+    : process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support')
+      : (process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'));
+  let port = 31415; // headless serve default (freellmapi-ops)
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(appdata, 'FreeLLMAPI', 'config.json'), 'utf8'));
     if (cfg.port) port = cfg.port;
@@ -385,9 +387,23 @@ async function cmdDiag(key, pos, opt) {
 const COMMANDS = { ask: cmdAsk, search: cmdSearch, decide: cmdDecide, probe: cmdProbe, embed: cmdEmbed, rerank: cmdRerank, image: cmdImage,
   speak: cmdSpeak, transcribe: cmdTranscribe, models: cmdModels, usage: cmdUsage, diag: cmdDiag };
 
+// FREELLM_ALLOWED_ROOTS (path-delimiter separated) confines the CLI to those trees, so it
+// cannot run from a workspace whose material must not leave the machine. Unset: no limit.
+function checkAllowedRoots() {
+  const raw = process.env.FREELLM_ALLOWED_ROOTS;
+  if (!raw) return;
+  const real = p => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  const cwd = real(process.cwd()) + path.sep;
+  const roots = raw.split(path.delimiter).filter(Boolean).map(r => real(r.replace(/^~(?=$|[\\/])/, os.homedir())));
+  if (!roots.some(r => cwd.startsWith(r + path.sep))) {
+    throw new UsageError(`refused: cwd ${process.cwd()} is outside FREELLM_ALLOWED_ROOTS (${raw}); FreeLLMAPI sends content to third-party providers`);
+  }
+}
+
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (!command || command === 'help' || command === '--help' || command === '-h') { out(HELP); return 0; }
+  checkAllowedRoots();
   const fn = COMMANDS[command];
   if (!fn) throw new UsageError(`unknown command '${command}'`);
   const { pos, opt } = parseArgs(rest);
