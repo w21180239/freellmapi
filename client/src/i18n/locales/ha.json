@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "na zaɓi",
     "customFamily": "Iyali",
     "customFamilyPlaceholder": "Matsaloli zuwa model id",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "Maɓallin API",
     "customCapabilities": "Abubuwan iyawa",
     "addModel": "Ƙara samfuri",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Babu samfuran haɗawa tukuna",
     "emptyDesc": "Haɗin iyalai suna bayyana nan da zarar kun ƙara maɓallin mai ba da tallafi wanda ke goyan bayan haɗawa.",
-    "dragToReorder": "Ja don sake yin odar mai bada sabis"
+    "dragToReorder": "Ja don sake yin odar mai bada sabis",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Fusion",
@@ -1234,7 +1238,8 @@
       "hermes": "Wakilin Nous Research mai inganta kansa, da ƙwaƙwalwa mai dorewa da ƙwarewa, a cikin terminal ko a manhajojin hira.",
       "pi": "Ƙaramin wakilin terminal da kuke tsara shi da naku ƙarin abubuwa, ƙwarewa da samfuran umarni.",
       "reasonix": "Wakilin rubuta lamba a tasha da aka gina don DeepSeek, bisa ajiyar prefix domin dogayen zama su kasance masu arha.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "Wakilin rubuta lamba a tasha na gida mai dogayen zama, izini, da kowane mai bayar da sabis mai dacewa da OpenAI."
     }
   },
   "update": {

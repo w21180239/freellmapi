@@ -101,13 +101,15 @@ const PLATFORMS = [
   'serpsearch',
   'brave',
   'outcrawl',
+  'tinyfish',
   'halx',
   'aisense',
+  'classifierdev',
   'freeai',
   'google', 'groq', 'cerebras', 'sail', 'electronhub', 'experiential', 'router9', 'septor', 'clod', 'speechify', 'blaze', 'lucidity', 'airforce', 'dreamprompting', 'waterfall', 'logfare', 'bai', 'radeon', 'nvidia', 'mistral',
   'openrouter', 'cohere', 'tavily', 'exa', 'firecrawl', 'linkup', 'parallel', 'keenable', 'cloudflare', 'zhipu', 'ollama',
   'kilo', 'pollinations', 'llm7', 'huggingface', 'opencode', 'ovh', 'agnes', 'reka', 'siliconflow',
-  'routeway', 'bazaarlink', 'ainative', 'aion', 'anyapi', 'powertokens', 'cheapllm', 'puter', 'requesty', 'navy', 'nara', 'sealion', 'orcarouter', 'unorouter', 'xkiro', 'modelscope',
+  'routeway', 'bazaarlink', 'ainative', 'aion', 'anyapi', 'powertokens', 'cheapllm', 'llmkiwi', 'tokenreply', 'puter', 'requesty', 'navy', 'nara', 'sealion', 'orcarouter', 'unorouter', 'xkiro', 'modelscope',
   'qianfan', 'volcengine', 'longcat', 'xfyun', 'aihorde', 'custom',
 ] as const;
 
@@ -1101,6 +1103,10 @@ async function registerImportedModels(
         dimensions,
         maxInputTokens: null,
         quotaLabel: 'custom endpoint',
+        // No rate-limit windows here on purpose: a bulk key import has no
+        // per-model limit input, and omitting them leaves whatever an operator
+        // configured through POST /api/embeddings/custom intact instead of
+        // silently resetting it to unlimited.
       });
       registered++;
     } catch (err: any) {

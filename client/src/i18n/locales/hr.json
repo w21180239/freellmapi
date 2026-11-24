@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "opcionalno",
     "customFamily": "Obitelj",
     "customFamilyPlaceholder": "Zadano na ID modela",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API ključ",
     "customCapabilities": "Mogućnosti",
     "addModel": "Dodaj model",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Još nema modela ugradnje",
     "emptyDesc": "Ugrađene obitelji pojavljuju se ovdje nakon što dodate ključ pružatelja usluga koji podržava ugrađivanja.",
-    "dragToReorder": "Povuci za ponovno naručivanje pružatelja"
+    "dragToReorder": "Povuci za ponovno naručivanje pružatelja",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Fuzija",
@@ -1234,7 +1238,8 @@
       "hermes": "Samopoboljšavajući agent tvrtke Nous Research s trajnom memorijom i vještinama, u terminalu ili u chat aplikacijama.",
       "pi": "Minimalistički terminalski agent koji oblikujete vlastitim proširenjima, vještinama i predlošcima upita.",
       "reasonix": "Terminalski agent za programiranje izrađen za DeepSeek, oko predmemoriranja prefiksa, kako bi duge sesije ostale jeftine.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "Lokalni terminalski agent za programiranje s trajnim sesijama, dozvolama i podrškom za svakog davatelja kompatibilnog s OpenAI-jem."
     }
   },
   "update": {

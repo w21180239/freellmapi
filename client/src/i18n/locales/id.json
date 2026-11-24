@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "opsional",
     "customFamily": "Keluarga",
     "customFamilyPlaceholder": "default untuk id model",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "Kunci API",
     "customCapabilities": "Kemampuan",
     "addModel": "Tambahkan model",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} hingga maks",
     "emptyTitle": "Belum ada model penyematan",
     "emptyDesc": "Keluarga penyematan muncul di sini setelah Anda menambahkan kunci penyedia yang mendukung penyematan.",
-    "dragToReorder": "Tarik untuk menyusun ulang penyedia"
+    "dragToReorder": "Tarik untuk menyusun ulang penyedia",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Fusi",
@@ -1234,7 +1238,8 @@
       "hermes": "Agen dari Nous Research yang terus memperbaiki diri, dengan memori persisten dan keterampilan, di terminal atau di aplikasi chat.",
       "pi": "Agen terminal minimalis yang Anda bentuk dengan ekstensi, keterampilan, dan templat prompt Anda sendiri.",
       "reasonix": "Agen coding terminal yang dibuat khusus untuk DeepSeek, dibangun di sekitar prefix caching agar sesi panjang tetap murah.",
-      "zcode": "Agen kode Z.ai untuk model GLM-nya, terhubung ke endpoint apa pun yang kompatibel dengan OpenAI melalui registri penyedia."
+      "zcode": "Agen kode Z.ai untuk model GLM-nya, terhubung ke endpoint apa pun yang kompatibel dengan OpenAI melalui registri penyedia.",
+      "zero": "Agen coding terminal lokal dengan sesi persisten, kontrol izin, dan penyedia apa pun yang kompatibel dengan OpenAI."
     }
   },
   "update": {

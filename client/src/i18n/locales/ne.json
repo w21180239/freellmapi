@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "वैकल्पिक",
     "customFamily": "परिवार",
     "customFamilyPlaceholder": "नमूना आईडीमा पूर्वनिर्धारितहरू",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "कुञ्जी API गर्नुहोस्",
     "customCapabilities": "क्षमताहरू",
     "addModel": "नमूना थप्नुहोस्",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} अधिकतम",
     "emptyTitle": "अहिले सम्म कुनै सम्मिलित नमुना छैन",
     "emptyDesc": "तपाईँले एम्बेडिङलाई समर्थन गर्ने प्रदायक कुञ्जी थप्नु भएपछि सम्मिलित परिवारहरू यहाँ देखा पर्दछ।",
-    "dragToReorder": "प्रदायक पुन: क्रमबद्ध गर्न तान्नुहोस्"
+    "dragToReorder": "प्रदायक पुन: क्रमबद्ध गर्न तान्नुहोस्",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "फ्युजन",
@@ -1234,7 +1238,8 @@
       "hermes": "Nous Research को आफैं सुधारिने एजेन्ट, स्थायी मेमोरी र सीपहरूसहित, टर्मिनलमा वा च्याट एपहरूमा।",
       "pi": "एक न्यूनतम टर्मिनल एजेन्ट, जसलाई तपाईं आफ्नै एक्सटेन्सन, सीप र प्रम्प्ट टेम्प्लेटले आकार दिनुहुन्छ।",
       "reasonix": "DeepSeek का लागि बनाइएको टर्मिनल कोडिङ एजेन्ट, लामा सत्रहरू सस्तो रहून् भनेर प्रिफिक्स क्यासिङको वरिपरि निर्माण गरिएको।",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "स्थायी सत्र, अनुमतिहरू र कुनै पनि OpenAI-अनुकूल प्रदायकसँग काम गर्ने स्थानीय टर्मिनल कोडिङ एजेन्ट।"
     }
   },
   "update": {

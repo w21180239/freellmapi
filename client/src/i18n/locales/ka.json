@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "სურვილისამებრ",
     "customFamily": "ოჯახი",
     "customFamilyPlaceholder": "ნაგულისხმევია მოდელის ID",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API გასაღები",
     "customCapabilities": "შესაძლებლობები",
     "addModel": "მოდელის დამატება",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} ტოკ მაქს",
     "emptyTitle": "ჯერ არ არის ჩაშენებული მოდელები",
     "emptyDesc": "ჩაშენების ოჯახები აქ გამოჩნდება, როგორც კი დაამატებთ პროვაიდერის გასაღებს, რომელიც მხარს უჭერს ჩაშენებებს.",
-    "dragToReorder": "გადაიტანეთ პროვაიდერის ხელახლა შეკვეთისთვის"
+    "dragToReorder": "გადაიტანეთ პროვაიდერის ხელახლა შეკვეთისთვის",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "შერწყმა",
@@ -1234,7 +1238,8 @@
       "hermes": "Nous Research-ის თვითგანვითარებადი აგენტი მუდმივი მეხსიერებითა და უნარებით, ტერმინალში ან ჩატის აპებში.",
       "pi": "მინიმალისტური ტერმინალის აგენტი, რომელსაც საკუთარი გაფართოებებით, უნარებითა და მოთხოვნის შაბლონებით აწყობთ.",
       "reasonix": "DeepSeek-ისთვის შექმნილი ტერმინალის კოდირების აგენტი, აგებული პრეფიქსის ქეშირებაზე, რომ ხანგრძლივი სესიები იაფი დარჩეს.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "ლოკალური ტერმინალის კოდირების აგენტი მდგრადი სესიებით, უფლებებით და OpenAI-სთან თავსებადი ნებისმიერი პროვაიდერის მხარდაჭერით."
     }
   },
   "update": {

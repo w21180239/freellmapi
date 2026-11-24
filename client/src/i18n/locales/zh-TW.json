@@ -493,6 +493,9 @@
     "customDisplayNameOptional": "選填",
     "customFamily": "系列",
     "customFamilyPlaceholder": "預設為模型 ID",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API 金鑰",
     "customCapabilities": "能力",
     "addModel": "新增模型",
@@ -999,7 +1002,8 @@
     "tokMax": "最多 {tokens} Token",
     "emptyTitle": "尚無嵌入模型",
     "emptyDesc": "新增支援嵌入的提供者金鑰後，嵌入系列會顯示在這裡。",
-    "dragToReorder": "拖曳以重新排序提供者"
+    "dragToReorder": "拖曳以重新排序提供者",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "融合",
@@ -1234,7 +1238,8 @@
       "hermes": "Nous Research 的自我改進代理，具備持久記憶與技能，可在終端機或聊天應用程式中使用。",
       "pi": "一個極簡的終端機代理，用你自己的擴充功能、技能與提示詞範本來塑造它。",
       "reasonix": "為 DeepSeek 原生打造的終端程式設計代理，圍繞前綴快取設計，長時間工作階段也能維持低成本。",
-      "zcode": "Z.ai 為其 GLM 模型打造的編程智能體，可透過提供方註冊表連線任何 OpenAI 相容端點。"
+      "zcode": "Z.ai 為其 GLM 模型打造的編程智能體，可透過提供方註冊表連線任何 OpenAI 相容端點。",
+      "zero": "一款本機終端程式設計代理，支援持久化工作階段、權限控制與任意 OpenAI 相容提供方。"
     }
   },
   "update": {

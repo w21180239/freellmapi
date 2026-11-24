@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "προαιρετικός",
     "customFamily": "Οικογένεια",
     "customFamilyPlaceholder": "Προεπιλογή σε αναγνωριστικό μοντέλου",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API κλειδί",
     "customCapabilities": "Δυνατότητες",
     "addModel": "Προσθήκη μοντέλου",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Δεν υπάρχουν ακόμη μοντέλα ενσωμάτωσης",
     "emptyDesc": "Οι οικογένειες ενσωμάτωσης εμφανίζονται εδώ μόλις προσθέσετε ένα κλειδί υπηρεσίας παροχής που υποστηρίζει ενσωματώσεις.",
-    "dragToReorder": "Σύρετε για να αλλάξετε τη σειρά του παρόχου"
+    "dragToReorder": "Σύρετε για να αλλάξετε τη σειρά του παρόχου",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Σύντηξη",
@@ -1234,7 +1238,8 @@
       "hermes": "Ο αυτοβελτιούμενος πράκτορας της Nous Research με μόνιμη μνήμη και δεξιότητες, στο τερματικό ή σε εφαρμογές συνομιλίας.",
       "pi": "Ένας μινιμαλιστικός πράκτορας τερματικού που διαμορφώνετε με δικές σας επεκτάσεις, δεξιότητες και πρότυπα προτροπών.",
       "reasonix": "Πράκτορας προγραμματισμού για το τερματικό, φτιαγμένος για το DeepSeek γύρω από την προσωρινή αποθήκευση προθεμάτων, ώστε οι μεγάλες συνεδρίες να μένουν φθηνές.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "Ένας τοπικός πράκτορας προγραμματισμού τερματικού με μόνιμες συνεδρίες, δικαιώματα και κάθε πάροχο συμβατό με OpenAI."
     }
   },
   "update": {

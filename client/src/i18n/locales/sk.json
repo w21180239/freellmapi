@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "voliteľné",
     "customFamily": "Rodina",
     "customFamilyPlaceholder": "Predvolené na Model ID",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API kľúč",
     "customCapabilities": "Schopnosti",
     "addModel": "Pridaj model",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Zatiaľ žiadne modely vkladania",
     "emptyDesc": "Embeddingové rodiny sa tu objavia po pridaní poskytovateľského kľúča, ktorý podporuje embeddingy.",
-    "dragToReorder": "Drag to reorder provider"
+    "dragToReorder": "Drag to reorder provider",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Fúzia",
@@ -1234,7 +1238,8 @@
       "hermes": "Samozdokonaľujúci sa agent od Nous Research s trvalou pamäťou a zručnosťami, v termináli alebo v chatovacích aplikáciách.",
       "pi": "Minimalistický terminálový agent, ktorý si prispôsobíte vlastnými rozšíreniami, zručnosťami a šablónami promptov.",
       "reasonix": "Terminálový agent na programovanie stavaný pre DeepSeek, postavený na cachovaní prefixov, aby dlhé relácie zostali lacné.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "Lokálny terminálový agent na programovanie s trvalými reláciami, oprávneniami a podporou akéhokoľvek poskytovateľa kompatibilného s OpenAI."
     }
   },
   "update": {

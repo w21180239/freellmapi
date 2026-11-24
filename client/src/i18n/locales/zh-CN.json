@@ -493,6 +493,9 @@
     "customDisplayNameOptional": "可选",
     "customFamily": "系列",
     "customFamilyPlaceholder": "默认为模型 ID",
+    "customEmbeddingInputType": "输入类型",
+    "customEmbeddingInputTypeUnset": "未指定",
+    "customEmbeddingInputTypeNone": "无（对称）",
     "customApiKey": "API 密钥",
     "customCapabilities": "能力",
     "addModel": "添加模型",
@@ -999,7 +1002,8 @@
     "tokMax": "最多 {tokens} tok",
     "emptyTitle": "暂无嵌入模型",
     "emptyDesc": "添加支持嵌入的提供方密钥后，嵌入系列会显示在这里。",
-    "dragToReorder": "拖动以重新排序提供方"
+    "dragToReorder": "拖动以重新排序提供方",
+    "inputTypeTitle": "非对称嵌入模型：向量空间的这一侧会作为 input_type 发送。"
   },
   "fusion": {
     "title": "融合",
@@ -1234,7 +1238,8 @@
       "hermes": "Nous Research 的自我改进智能体，拥有持久记忆和技能，可在终端或聊天应用中使用。",
       "pi": "一个极简的终端智能体，用你自己的扩展、技能和提示词模板来塑造它。",
       "reasonix": "为 DeepSeek 原生打造的终端编程智能体，围绕前缀缓存设计，长会话也能保持低成本。",
-      "zcode": "Z.ai 为其 GLM 模型打造的编程智能体，可通过提供方注册表连接任意 OpenAI 兼容端点。"
+      "zcode": "Z.ai 为其 GLM 模型打造的编程智能体，可通过提供方注册表连接任意 OpenAI 兼容端点。",
+      "zero": "一款本地终端编程智能体，支持持久化会话、权限控制以及任意 OpenAI 兼容提供方。"
     }
   },
   "update": {

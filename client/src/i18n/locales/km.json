@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "ជាជម្រើស",
     "customFamily": "គ្រួសារ",
     "customFamilyPlaceholder": "លំនាំដើមទៅលេខសម្គាល់ម៉ូដែល",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API",
     "customCapabilities": "សមត្ថភាព",
     "addModel": "បន្ថែមម៉ូដែល",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} TOK Max",
     "emptyTitle": "មិនទាន់មានម៉ូដែលបញ្ចូលនៅឡើយទេ",
     "emptyDesc": "គ្រួសារបញ្ចូលនឹងបង្ហាញនៅទីនេះបន្ទាប់ពីអ្នកបន្ថែមកូនសោអ្នកផ្គត់ផ្គង់ដែលគាំទ្រការបញ្ចូល។",
-    "dragToReorder": "អូសដើម្បីរៀបចំលំដាប់អ្នកផ្គត់ផ្គង់"
+    "dragToReorder": "អូសដើម្បីរៀបចំលំដាប់អ្នកផ្គត់ផ្គង់",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "ការរួមបញ្ចូល",
@@ -1234,7 +1238,8 @@
       "hermes": "ភ្នាក់ងាររបស់ Nous Research ដែលកែលម្អខ្លួនឯង មានអង្គចងចាំអចិន្ត្រៃយ៍ និងជំនាញ នៅក្នុង terminal ឬលើកម្មវិធីជជែក។",
       "pi": "ភ្នាក់ងារ terminal តូចចង្អៀត ដែលអ្នករៀបចំដោយផ្នែកបន្ថែម ជំនាញ និងគំរូ prompt ផ្ទាល់ខ្លួន។",
       "reasonix": "ភ្នាក់ងារសរសេរកូដលើ terminal ដែលបង្កើតឡើងសម្រាប់ DeepSeek ផ្អែកលើ prefix caching ដើម្បីឱ្យវគ្គវែងៗនៅតែថោក។",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "ភ្នាក់ងារសរសេរកូដលើស្ថានីយក្នុងមូលដ្ឋាន ដែលមានវគ្គប្រើប្រាស់ស្ថិតស្ថេរ ការគ្រប់គ្រងសិទ្ធិ និងគាំទ្រអ្នកផ្តល់សេវាដែលត្រូវគ្នានឹង OpenAI ណាមួយ។"
     }
   },
   "update": {

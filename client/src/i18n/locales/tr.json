@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "isteğe bağlı",
     "customFamily": "Aile",
     "customFamilyPlaceholder": "varsayılan olarak model kimliği kullanılır",
+    "customEmbeddingInputType": "Giriş türü",
+    "customEmbeddingInputTypeUnset": "Belirtilmemiş",
+    "customEmbeddingInputTypeNone": "Yok (simetrik)",
     "customApiKey": "API anahtarı",
     "customCapabilities": "Yetenekler",
     "addModel": "Model ekle",
@@ -999,7 +1002,8 @@
     "tokMax": "maks. {tokens} token",
     "emptyTitle": "Henüz gömme modeli yok",
     "emptyDesc": "Gömmeleri destekleyen bir sağlayıcı anahtarı eklediğinizde gömme aileleri burada görünür.",
-    "dragToReorder": "Sağlayıcıyı yeniden sıralamak için sürükleyin"
+    "dragToReorder": "Sağlayıcıyı yeniden sıralamak için sürükleyin",
+    "inputTypeTitle": "Asimetrik gömme modeli: vektör uzayının bu tarafı input_type olarak gönderilir."
   },
   "fusion": {
     "title": "Füzyon",
@@ -1234,7 +1238,8 @@
       "hermes": "Nous Research'ün kendini geliştiren ajanı; kalıcı bellek ve becerilerle, terminalde ya da sohbet uygulamalarında.",
       "pi": "Kendi uzantılarınız, becerileriniz ve istem şablonlarınızla şekillendirdiğiniz minimal bir terminal ajanı.",
       "reasonix": "DeepSeek için geliştirilmiş bir terminal kodlama ajanı; uzun oturumlar ucuz kalsın diye önek önbelleği etrafında kurulmuştur.",
-      "zcode": "Z.ai'nin GLM modelleri için kodlama ajanı; sağlayıcı kaydıyla herhangi bir OpenAI uyumlu uç noktaya bağlanır."
+      "zcode": "Z.ai'nin GLM modelleri için kodlama ajanı; sağlayıcı kaydıyla herhangi bir OpenAI uyumlu uç noktaya bağlanır.",
+      "zero": "Kalıcı oturumlar, izinler ve OpenAI uyumlu herhangi bir sağlayıcıyla çalışan yerel bir terminal kodlama ajanı."
     }
   },
   "update": {

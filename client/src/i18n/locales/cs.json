@@ -489,6 +489,9 @@
     "customDisplayNameOptional": "volitelné",
     "customFamily": "Rodina",
     "customFamilyPlaceholder": "výchozí nastavení na model id",
+    "customEmbeddingInputType": "Input type",
+    "customEmbeddingInputTypeUnset": "Not specified",
+    "customEmbeddingInputTypeNone": "None (symmetric)",
     "customApiKey": "API klíč",
     "customCapabilities": "Schopnosti",
     "addModel": "Přidat model",
@@ -999,7 +1002,8 @@
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Modely zatím nejsou žádné embedding",
     "emptyDesc": "Embedding families se zde objeví, jakmile přidáte klíč poskytovatele, který embeddingy podporuje.",
-    "dragToReorder": "Poskytovatel přetahování pro přeobjednaní"
+    "dragToReorder": "Poskytovatel přetahování pro přeobjednaní",
+    "inputTypeTitle": "Asymmetric embedding model: this side of the vector space is sent as input_type."
   },
   "fusion": {
     "title": "Fúze",
@@ -1234,7 +1238,8 @@
       "hermes": "Samozdokonalující se agent od Nous Research s trvalou pamětí a dovednostmi, v terminálu nebo v chatovacích aplikacích.",
       "pi": "Minimalistický terminálový agent, který si přizpůsobíte vlastními rozšířeními, dovednostmi a šablonami promptů.",
       "reasonix": "Terminálový agent pro programování stavěný pro DeepSeek, postavený na cachování prefixů, aby dlouhé relace zůstaly levné.",
-      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry."
+      "zcode": "Z.ai's coding agent for its GLM models, speaking any OpenAI-compatible endpoint through a provider registry.",
+      "zero": "Lokální terminálový agent pro programování s trvalými relacemi, oprávněními a podporou jakéhokoli poskytovatele kompatibilního s OpenAI."
     }
   },
   "update": {
