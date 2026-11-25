@@ -26,5 +26,5 @@ Operator skill: `skills/freellmapi-ops/SKILL.md` (conflict table in its `referen
 
 1. `sync-upstream`: fetch, merge `upstream/main` into `local/customizations`, install, build, server and client tests, restart the headless server. A conflict stops it; resolve per the table, commit, rerun.
 2. `dev-restart`: rebuild and restart, wait for 127.0.0.1:31415/health = 200.
-3. Catalog: the signed catalog is a baseline; `lists` adds, blocks, claims and releases rows of any modality on top of it. Also `health`, `inventory`, `add-models`, `test-sample`.
+3. Management CLI: `node skills/freellmapi-ops/scripts/ops.mjs cli <command>` runs the npm CLI (`cli/`) with a loopback session token. Fork-only commands live in `cli/src/fork-*.ts` (merge seams: one dispatch line in `index.ts`, one in `dashboard-models.ts`). Catalog: the signed catalog is a baseline; `cli catalog` adds, blocks, claims and releases rows of any modality on top of it. Also `cli status`, `cli inventory`, `cli models add`, `cli test-sample`.
 4. `sync-upstream` pushes `local/customizations` to `origin` after a green run; push other local commits with `git push origin local/customizations`.
