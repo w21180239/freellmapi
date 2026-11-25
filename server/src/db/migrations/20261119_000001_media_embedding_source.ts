@@ -62,8 +62,7 @@ export function up(db: Db): void {
   }
 }
 
+// embedding_models.source belongs to upstream's 20261118 migration; its down() drops it.
 export function down(db: Db): void {
-  for (const table of TABLES) {
-    if (hasColumn(db, table, 'source')) db.prepare(`ALTER TABLE ${table} DROP COLUMN source`).run();
-  }
+  if (hasColumn(db, 'media_models', 'source')) db.prepare('ALTER TABLE media_models DROP COLUMN source').run();
 }
