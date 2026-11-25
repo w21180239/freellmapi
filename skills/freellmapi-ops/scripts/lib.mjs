@@ -61,18 +61,9 @@ export async function healthStatus(timeoutMs = 3000) {
   } catch { return 0; }
 }
 
-export async function waitForHealth(timeoutSec = 120) {
-  const t0 = Date.now();
-  while ((Date.now() - t0) / 1000 < timeoutSec) {
-    if (await healthStatus() === 200) return Math.round((Date.now() - t0) / 1000);
-    await sleep(1500);
-  }
-  return null;
-}
-
 /**
- * Desktop-session client. The token stays in this closure; it is never printed
- * and is revoked in `finally`. `call` retries once after a 429, honouring Retry-After.
+ * Desktop-session client. The token is handed only to `fn` (never printed) and is
+ * revoked in `finally`. `call` retries once after a 429, honouring Retry-After.
  */
 export async function withSession(fn) {
   const base = baseUrl();
@@ -99,7 +90,7 @@ export async function withSession(fn) {
       return { status: r.status, json };
     }
   }
-  try { return await fn({ call }); }
+  try { return await fn({ call, token }); }
   finally {
     try { await fetch(`${base}/api/auth/logout`, { method: 'POST', headers, signal: AbortSignal.timeout(5000) }); } catch { /* app gone */ }
   }

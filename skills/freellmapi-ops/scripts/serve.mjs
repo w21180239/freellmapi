@@ -33,9 +33,10 @@ function newestMtime(target) {
 const TARGETS = {
   server: { src: ['server/src', 'shared'], out: 'server/dist', ws: 'server' },
   client: { src: ['client/src', 'client/index.html', 'shared'], out: 'client/dist', ws: 'client' },
+  cli: { src: ['cli/src'], out: 'cli/dist', ws: 'cli' },
 };
 
-/** Build server and client when `force` or when sources are newer than the output. */
+/** Build server, client and cli when `force` or when sources are newer than the output. */
 export function build({ force = false } = {}) {
   for (const [name, t] of Object.entries(TARGETS)) {
     const srcT = Math.max(...t.src.map((s) => newestMtime(path.join(REPO, s))));

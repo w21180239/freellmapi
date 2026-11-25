@@ -17,6 +17,7 @@ import { modelsHelp, runModels } from './dashboard-models.js';
 import { runSettings, settingsHelp } from './dashboard-settings.js';
 import { runTestSample, testSampleHelp } from './test-sample.js';
 import { analyticsHelp, runRequests, runUsage } from './analytics.js';
+import { FORK_HELP_LINES, isForkCommand, runForkCommand } from './fork-commands.js';
 import type { CatalogModel, GenerateContext } from './types.js';
 
 interface CliOptions extends KeyCommandOptions {
@@ -160,11 +161,23 @@ export function parseArgs(argv: string[]): { command?: string; options: CliOptio
   return { command, options };
 }
 
+async function readStdin(): Promise<string> {
+  let text = '';
+  for await (const chunk of process.stdin) text += String(chunk);
+  return text.trim();
+}
+
+// A provider key may come from FREELLMAPI_PROVIDER_KEY or piped stdin, so scripts
+// never put it in argv.
 async function promptForKey(provider = false): Promise<string> {
+  if (provider) {
+    const supplied = process.env.FREELLMAPI_PROVIDER_KEY?.trim() || (process.stdin.isTTY ? '' : await readStdin());
+    if (supplied) return supplied;
+  }
   if (!process.stdin.isTTY) {
     throw new Error(
       provider
-        ? 'No provider key supplied. Pass --key or use an interactive terminal for hidden input.'
+        ? 'No provider key supplied. Pass --key, set FREELLMAPI_PROVIDER_KEY, pipe it on stdin, or use an interactive terminal for hidden input.'
         : 'No API key supplied. Pass --api-key or set FREELLMAPI_API_KEY.',
     );
   }
@@ -333,6 +346,8 @@ function help(): string {
     '  status            Gateway reachability, version, keys per platform, enabled models per kind',
     '  usage             Request totals and per-provider split (--range, --top, --json)',
     '  requests          Recent request log (--range, --status, --limit, --json)',
+    // Fork-only commands (local/customizations)
+    ...FORK_HELP_LINES,
     '',
     'Environment:',
     '  FREELLMAPI_URL, FREELLMAPI_API_KEY, FREELLMAPI_DASHBOARD_TOKEN (keys, models, settings, test-sample, status, usage, requests)',
@@ -531,6 +546,8 @@ function commandHelp(command: string | undefined): string {
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
+  // Fork-only commands (local/customizations) parse their own flags.
+  if (isForkCommand(argv[0])) return runForkCommand(argv);
   const { command, options } = parseArgs(argv);
   if (!command || command === 'help' || argv.includes('--help') || argv.includes('-h')) {
     process.stdout.write(`${commandHelp(command)}\n`);
