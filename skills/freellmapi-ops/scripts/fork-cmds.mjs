@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { APPDATA_DIR, REPO, die, git, log, parseArgs, run, withSession } from './lib.mjs';
-import { providerReport } from './gui-cmds.mjs';
+import { providerReport } from './providers.mjs';
 import { build, restartServer } from './serve.mjs';
 
 const BRANCH = 'local/customizations';
