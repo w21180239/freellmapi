@@ -1,12 +1,19 @@
 // Shared helpers for ops.mjs: repo paths, process runner, desktop-session client, port lookup.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-export const APPDATA_DIR = path.join(process.env.APPDATA ?? '', 'FreeLLMAPI');
 const isWin = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+/** Per-user data dir: %APPDATA% on Windows, Application Support on macOS, XDG config elsewhere. */
+export const APPDATA_DIR = path.join(
+  isWin ? (process.env.APPDATA ?? '')
+    : isMac ? path.join(os.homedir(), 'Library', 'Application Support')
+      : (process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config')),
+  'FreeLLMAPI');
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const log = (msg = '') => console.log(msg);
@@ -99,8 +106,12 @@ export async function withSession(fn) {
 }
 
 
-/** Pid listening on the app port (Windows netstat), or null. */
+/** Pid listening on the app port (netstat on Windows, lsof elsewhere), or null. */
 export function listenerPid(port = appPort()) {
+  if (!isWin) {
+    const pid = Number(run('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t']).stdout.trim().split('\n')[0]);
+    return pid || null;
+  }
   const r = run('netstat', ['-ano', '-p', 'tcp']);
   for (const line of r.out.split(/\r?\n/)) {
     const m = line.trim().match(/^TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)$/i);
@@ -110,6 +121,7 @@ export function listenerPid(port = appPort()) {
 }
 
 export function processName(pid) {
+  if (!isWin) return path.basename(run('ps', ['-p', String(pid), '-o', 'comm=']).stdout.trim()) || null;
   const r = run('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH']);
   const m = r.out.match(/^"([^"]+)"/m);
   return m ? m[1] : null;

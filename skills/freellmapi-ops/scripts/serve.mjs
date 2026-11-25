@@ -1,6 +1,7 @@
-// Headless server lifecycle: build, start/stop/status/logs, logon autostart (Windows).
+// Headless server lifecycle: build, start/stop/status/logs, logon autostart (Windows Startup .vbs, macOS LaunchAgent).
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   APPDATA_DIR, REPO, appPort, die, healthStatus, listenerPid, log, parseArgs, processName, run, sleep,
@@ -61,7 +62,14 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-function killTree(pid) { run('taskkill', ['/PID', String(pid), '/T', '/F']); }
+const isWin = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+
+function killTree(pid) {
+  if (isWin) { run('taskkill', ['/PID', String(pid), '/T', '/F']); return; }
+  // Detached start makes the server a process-group leader; signal the group, then the pid.
+  try { process.kill(-pid, 'SIGTERM'); } catch { try { process.kill(pid, 'SIGTERM'); } catch { /* gone */ } }
+}
 
 /**
  * Stop whatever serves the port: the headless node server (matched by pid file),
@@ -72,8 +80,8 @@ export async function stopServer() {
   const pid = listenerPid();
   if (pid) {
     const name = processName(pid) ?? 'unknown';
-    const ours = /^node\.exe$/i.test(name) && pid === pidFromFile();
-    if (!ours && !/^(electron|FreeLLMAPI)\.exe$/i.test(name)) {
+    const ours = /^node(\.exe)?$/i.test(name) && pid === pidFromFile();
+    if (!ours && !/^(electron|FreeLLMAPI)(\.exe)?$/i.test(name)) {
       die(`serve: port ${appPort()} is held by pid ${pid} (${name}); stop it manually`);
     }
     killTree(pid);
@@ -82,8 +90,10 @@ export async function stopServer() {
     notes.push(`stopped ${name} pid ${pid}`);
   }
   // The installed app may sit on a scanned port (31416+) and still shares the DB.
-  const packaged = run('tasklist', ['/FI', 'IMAGENAME eq FreeLLMAPI.exe', '/FO', 'CSV', '/NH']).out;
-  for (const m of packaged.matchAll(/^"FreeLLMAPI\.exe","(\d+)"/gim)) { killTree(Number(m[1])); notes.push(`stopped FreeLLMAPI.exe pid ${m[1]}`); }
+  if (isWin) {
+    const packaged = run('tasklist', ['/FI', 'IMAGENAME eq FreeLLMAPI.exe', '/FO', 'CSV', '/NH']).out;
+    for (const m of packaged.matchAll(/^"FreeLLMAPI\.exe","(\d+)"/gim)) { killTree(Number(m[1])); notes.push(`stopped FreeLLMAPI.exe pid ${m[1]}`); }
+  }
   fs.rmSync(PID_FILE, { force: true });
   return notes.length ? notes.join('; ') : 'nothing running';
 }
@@ -179,7 +189,61 @@ function removeForeign(e) {
   if (e.kind === 'task') run('schtasks', ['/delete', '/tn', e.id, '/f']);
 }
 
+/* macOS: a LaunchAgent runs `serve start --no-build` once at login. */
+const LA_LABEL = 'com.freellmapi.serve';
+const LA_PLIST = path.join(os.homedir(), 'Library', 'LaunchAgents', `${LA_LABEL}.plist`);
+const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function autostartMac(action) {
+  const domain = `gui/${process.getuid()}`;
+  if (action === 'on') {
+    const env = { PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin` };
+    // launchd does not read the shell profile; carry a corporate CA bundle over if one is set.
+    if (process.env.NODE_EXTRA_CA_CERTS) env.NODE_EXTRA_CA_CERTS = process.env.NODE_EXTRA_CA_CERTS;
+    const args = [process.execPath, OPS, 'serve', 'start', '--no-build'];
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Written by: ops.mjs serve autostart on -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${LA_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+${args.map((a) => `    <string>${xml(a)}</string>`).join('\n')}
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+${Object.entries(env).map(([k, v]) => `    <key>${k}</key><string>${xml(v)}</string>`).join('\n')}
+  </dict>
+  <key>WorkingDirectory</key><string>${xml(REPO)}</string>
+  <key>RunAtLoad</key><true/>
+  <!-- serve start exits after the detached server is healthy; keep the server alive. -->
+  <key>AbandonProcessGroup</key><true/>
+  <key>StandardOutPath</key><string>${xml(path.join(LOG_DIR, 'launchd.log'))}</string>
+  <key>StandardErrorPath</key><string>${xml(path.join(LOG_DIR, 'launchd.log'))}</string>
+</dict>
+</plist>
+`;
+    fs.mkdirSync(path.dirname(LA_PLIST), { recursive: true });
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.writeFileSync(LA_PLIST, plist);
+    run('launchctl', ['bootout', `${domain}/${LA_LABEL}`]);
+    const r = run('launchctl', ['bootstrap', domain, LA_PLIST]);
+    if (r.code !== 0) die(`autostart: launchctl bootstrap failed: ${r.out.trim()}`);
+    log(`autostart: on (${LA_PLIST})`);
+  } else if (action === 'off') {
+    run('launchctl', ['bootout', `${domain}/${LA_LABEL}`]);
+    fs.rmSync(LA_PLIST, { force: true });
+    log('autostart: off');
+  } else if (action === 'status') {
+    const loaded = run('launchctl', ['print', `${domain}/${LA_LABEL}`]).code === 0;
+    log(`autostart: ${fs.existsSync(LA_PLIST) ? `on (${LA_PLIST})${loaded ? '' : ', not loaded'}` : 'off'}`);
+  } else die('usage: serve autostart <on|off|status>', 2);
+}
+
 function autostart(action) {
+  if (isMac) return autostartMac(action);
+  if (!isWin) die('autostart: only Windows and macOS are supported', 2);
   if (action === 'on') {
     const vbs = [
       `' Start the headless FreeLLMAPI server at logon, hidden. Written by: ops.mjs serve autostart on`,
