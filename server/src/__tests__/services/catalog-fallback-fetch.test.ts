@@ -116,9 +116,10 @@ describe('syncCatalog retry', () => {
       vi.stubGlobal('fetch', nodeFetch);
 
       const pending = syncCatalog();
-      await vi.advanceTimersByTimeAsync(2_000 + 4_000);
+      // Each attempt is catalogFetch's own fetch + 1 s retry, then 2 s / 4 s backoff between attempts.
+      await vi.advanceTimersByTimeAsync(3 * 1_000 + 2_000 + 4_000);
       expect(await pending).toMatchObject({ ok: false, action: 'error' });
-      expect(nodeFetch).toHaveBeenCalledTimes(3);
+      expect(nodeFetch).toHaveBeenCalledTimes(6);
     } finally {
       vi.useRealTimers();
     }
