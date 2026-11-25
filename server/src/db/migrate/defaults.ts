@@ -55,6 +55,7 @@ import * as embeddingRateLimits from '../migrations/20261117_000001_embedding_ra
 import * as customEmbeddingInputType from '../migrations/20261117_000002_custom_embedding_input_type.js';
 import * as embeddingSourceProvenance from '../migrations/20261118_000001_embedding_source_provenance.js';
 import * as mediaEmbeddingSource from '../migrations/20261119_000001_media_embedding_source.js';
+import * as oidcIdentities from '../migrations/20261124_000001_oidc_identities.js';
 
 export interface MigrationModule {
   up(db: Db): void;
@@ -121,6 +122,7 @@ export const EMBEDDING_RATE_LIMITS_FILENAME = '20261117_000001_embedding_rate_li
 export const CUSTOM_EMBEDDING_INPUT_TYPE_FILENAME = '20261117_000002_custom_embedding_input_type.ts';
 export const EMBEDDING_SOURCE_PROVENANCE_FILENAME = '20261118_000001_embedding_source_provenance.ts';
 export const MEDIA_EMBEDDING_SOURCE_FILENAME = '20261119_000001_media_embedding_source.ts';
+export const OIDC_IDENTITIES_FILENAME = '20261124_000001_oidc_identities.ts';
 
 export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
   { filename: LEGACY_BASELINE_FILENAME, module: legacyBaseline },
@@ -179,4 +181,5 @@ export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
   { filename: CUSTOM_EMBEDDING_INPUT_TYPE_FILENAME, module: customEmbeddingInputType },
   { filename: EMBEDDING_SOURCE_PROVENANCE_FILENAME, module: embeddingSourceProvenance },
   { filename: MEDIA_EMBEDDING_SOURCE_FILENAME, module: mediaEmbeddingSource },
+  { filename: OIDC_IDENTITIES_FILENAME, module: oidcIdentities },
 ];

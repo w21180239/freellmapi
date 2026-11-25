@@ -60,7 +60,16 @@
     "emailChanged": "E-mail został zmieniony.",
     "passwordReset": "Hasło zresetowane. Zaloguj się ponownie.",
     "resetCodeDockerHint": "Serwer działa w kontenerze Docker? Kod znajduje się w logu kontenera: docker logs <container>.",
-    "desktopSessionFailed": "Panel nie mógł zalogować się do lokalnego serwera. Zamknij FreeLLMAPI i otwórz go ponownie."
+    "desktopSessionFailed": "Panel nie mógł zalogować się do lokalnego serwera. Zamknij FreeLLMAPI i otwórz go ponownie.",
+    "signInWithSso": "Zaloguj się przez {provider}",
+    "orContinueWithPassword": "lub kontynuuj przez e-mail",
+    "reverifyWithSso": "Potwierdź ponownie przez {provider}",
+    "oidcReauthHint": "Potwierdź tożsamość w {provider}, aby uzyskać dostęp do jawnych kluczy.",
+    "oidcReauthSuccess": "Tożsamość zweryfikowana na kolejne 5 minut.",
+    "oidcErrorNotAllowed": "Twoje konto nie ma uprawnień do logowania się do tego panelu.",
+    "oidcErrorUnverifiedEmail": "Dostawca tożsamości musi zweryfikować Twój adres e-mail przed zalogowaniem.",
+    "oidcErrorNoAccount": "Brak pasującego konta, a automatyczne tworzenie kont jest wyłączone.",
+    "oidcErrorFailed": "Logowanie jednokrotne nie powiodło się. Spróbuj ponownie."
   },
   "common": {
     "save": "Zapisz",
@@ -171,7 +180,12 @@
     "updateNow": "Aktualizuj teraz",
     "updatingContainer": "Pobieranie nowego obrazu i ponowne uruchamianie. Strona odświeży się, gdy FreeLLMAPI wróci.",
     "updateNowFailed": "Aktualizator nie przyjął żądania. Sprawdź, czy kontener watchtower działa.",
-    "updateNowTimeout": "FreeLLMAPI nie uruchomił się ponownie po 5 minutach. Sprawdź logi kontenera watchtower."
+    "updateNowTimeout": "FreeLLMAPI nie uruchomił się ponownie po 5 minutach. Sprawdź logi kontenera watchtower.",
+    "injectSystemDate": "System date in prompt",
+    "injectSystemDateHelp": "Prepend today’s UTC date (YYYY-MM-DD) to the system prompt so models query web search for current information. Skipped if the caller already includes a date. Off or Web search is recommended to preserve prompt caching.",
+    "injectSystemDateOff": "Off",
+    "injectSystemDateWebSearch": "Web search",
+    "injectSystemDateAlways": "Always"
   },
   "models": {
     "title": "Modele",

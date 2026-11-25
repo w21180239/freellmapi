@@ -60,7 +60,16 @@
     "emailChanged": "மின்னஞ்சல் வெற்றிகரமாக மாற்றப்பட்டது.",
     "passwordReset": "கடவுச்சொல் மீட்டமைக்கப்பட்டது. உள்நுழையவும்.",
     "resetCodeDockerHint": "Docker-இல் இயக்குகிறீர்களா? குறியீடு கண்டெய்னர் பதிவில் உள்ளது: docker logs <container>.",
-    "desktopSessionFailed": "டாஷ்போர்டால் உள்ளூர் சேவையகத்தில் உள்நுழைய முடியவில்லை. FreeLLMAPI-ஐ மூடிவிட்டு மீண்டும் திறக்கவும்."
+    "desktopSessionFailed": "டாஷ்போர்டால் உள்ளூர் சேவையகத்தில் உள்நுழைய முடியவில்லை. FreeLLMAPI-ஐ மூடிவிட்டு மீண்டும் திறக்கவும்.",
+    "signInWithSso": "Sign in with {provider}",
+    "orContinueWithPassword": "or continue with email",
+    "reverifyWithSso": "Re-verify with {provider}",
+    "oidcReauthHint": "Confirm your identity with {provider} to access plaintext keys.",
+    "oidcReauthSuccess": "Identity verified for the next 5 minutes.",
+    "oidcErrorNotAllowed": "Your account is not permitted to sign in to this dashboard.",
+    "oidcErrorUnverifiedEmail": "Your identity provider must verify your email address before signing in.",
+    "oidcErrorNoAccount": "No matching account exists and automatic account creation is disabled.",
+    "oidcErrorFailed": "Single sign-on failed. Please try again."
   },
   "common": {
     "save": "சேமிக்கவும்",
@@ -171,7 +180,12 @@
     "updateNow": "இப்போது புதுப்பி",
     "updatingContainer": "புதிய image-ஐப் பெற்று மறுதொடக்கம் செய்கிறது. FreeLLMAPI திரும்பியதும் இந்தப் பக்கம் மீண்டும் ஏற்றப்படும்.",
     "updateNowFailed": "புதுப்பிப்பான் கோரிக்கையை ஏற்கவில்லை. watchtower கொள்கலன் இயங்குகிறதா எனச் சரிபார்க்கவும்.",
-    "updateNowTimeout": "5 நிமிடங்களுக்குப் பிறகும் FreeLLMAPI மறுதொடக்கம் ஆகவில்லை. watchtower கொள்கலனின் பதிவுகளைப் பார்க்கவும்."
+    "updateNowTimeout": "5 நிமிடங்களுக்குப் பிறகும் FreeLLMAPI மறுதொடக்கம் ஆகவில்லை. watchtower கொள்கலனின் பதிவுகளைப் பார்க்கவும்.",
+    "injectSystemDate": "System date in prompt",
+    "injectSystemDateHelp": "Prepend today’s UTC date (YYYY-MM-DD) to the system prompt so models query web search for current information. Skipped if the caller already includes a date. Off or Web search is recommended to preserve prompt caching.",
+    "injectSystemDateOff": "Off",
+    "injectSystemDateWebSearch": "Web search",
+    "injectSystemDateAlways": "Always"
   },
   "models": {
     "title": "மாதிரிகள்",

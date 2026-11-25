@@ -60,7 +60,16 @@
     "emailChanged": "အီးမေးလ်ပြောင်းပြီးပါပြီ။",
     "passwordReset": "စကားဝှက်ပြန်လည်သတ်မှတ်ပြီးပါပြီ။ ဝင်ရောက်ပါ။",
     "resetCodeDockerHint": "Docker တွင် လည်ပတ်နေပါသလား။ ကုဒ်သည် ကွန်တိန်နာမှတ်တမ်းတွင် ရှိသည် - docker logs <container>",
-    "desktopSessionFailed": "ဒက်ရှ်ဘုတ်သည် ဒေသတွင်းဆာဗာသို့ ဝင်ရောက်၍ မရပါ။ FreeLLMAPI ကို ပိတ်ပြီး ပြန်ဖွင့်ပါ။"
+    "desktopSessionFailed": "ဒက်ရှ်ဘုတ်သည် ဒေသတွင်းဆာဗာသို့ ဝင်ရောက်၍ မရပါ။ FreeLLMAPI ကို ပိတ်ပြီး ပြန်ဖွင့်ပါ။",
+    "signInWithSso": "Sign in with {provider}",
+    "orContinueWithPassword": "or continue with email",
+    "reverifyWithSso": "Re-verify with {provider}",
+    "oidcReauthHint": "Confirm your identity with {provider} to access plaintext keys.",
+    "oidcReauthSuccess": "Identity verified for the next 5 minutes.",
+    "oidcErrorNotAllowed": "Your account is not permitted to sign in to this dashboard.",
+    "oidcErrorUnverifiedEmail": "Your identity provider must verify your email address before signing in.",
+    "oidcErrorNoAccount": "No matching account exists and automatic account creation is disabled.",
+    "oidcErrorFailed": "Single sign-on failed. Please try again."
   },
   "common": {
     "save": "သိမ်းဆည်းပါ",
@@ -171,7 +180,12 @@
     "updateNow": "ယခု အပ်ဒိတ်လုပ်ရန်",
     "updatingContainer": "image အသစ်ကို ဆွဲယူပြီး ပြန်စတင်နေသည်။ FreeLLMAPI ပြန်လာသောအခါ ဤစာမျက်နှာ ပြန်ဖွင့်ပါမည်။",
     "updateNowFailed": "အပ်ဒိတ်လုပ်သူက တောင်းဆိုမှုကို မလက်ခံပါ။ watchtower container လည်ပတ်နေကြောင်း စစ်ဆေးပါ။",
-    "updateNowTimeout": "၅ မိနစ်ကြာသော်လည်း FreeLLMAPI ပြန်မစတင်သေးပါ။ watchtower container ၏ မှတ်တမ်းများကို စစ်ဆေးပါ။"
+    "updateNowTimeout": "၅ မိနစ်ကြာသော်လည်း FreeLLMAPI ပြန်မစတင်သေးပါ။ watchtower container ၏ မှတ်တမ်းများကို စစ်ဆေးပါ။",
+    "injectSystemDate": "System date in prompt",
+    "injectSystemDateHelp": "Prepend today’s UTC date (YYYY-MM-DD) to the system prompt so models query web search for current information. Skipped if the caller already includes a date. Off or Web search is recommended to preserve prompt caching.",
+    "injectSystemDateOff": "Off",
+    "injectSystemDateWebSearch": "Web search",
+    "injectSystemDateAlways": "Always"
   },
   "models": {
     "title": "မော်ဒယ်များ",

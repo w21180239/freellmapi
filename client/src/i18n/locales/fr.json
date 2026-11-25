@@ -60,7 +60,16 @@
     "emailChanged": "Adresse e-mail modifiée avec succès.",
     "passwordReset": "Mot de passe réinitialisé avec succès. Veuillez vous connecter.",
     "resetCodeDockerHint": "Vous utilisez Docker ? Le code se trouve dans le journal du conteneur : docker logs <container>.",
-    "desktopSessionFailed": "Le tableau de bord n'a pas pu se connecter au serveur local. Quittez FreeLLMAPI et rouvrez-le."
+    "desktopSessionFailed": "Le tableau de bord n'a pas pu se connecter au serveur local. Quittez FreeLLMAPI et rouvrez-le.",
+    "signInWithSso": "Se connecter avec {provider}",
+    "orContinueWithPassword": "ou continuer par e-mail",
+    "reverifyWithSso": "Revérifier avec {provider}",
+    "oidcReauthHint": "Confirmez votre identité avec {provider} pour accéder aux clés en clair.",
+    "oidcReauthSuccess": "Identité vérifiée pour les 5 prochaines minutes.",
+    "oidcErrorNotAllowed": "Votre compte n'est pas autorisé à se connecter à ce tableau de bord.",
+    "oidcErrorUnverifiedEmail": "Votre fournisseur d'identité doit vérifier votre adresse e-mail avant la connexion.",
+    "oidcErrorNoAccount": "Aucun compte correspondant n'existe et la création automatique est désactivée.",
+    "oidcErrorFailed": "L'authentification unique a échoué. Veuillez réessayer."
   },
   "common": {
     "save": "Enregistrer",
@@ -171,7 +180,12 @@
     "updateNow": "Mettre à jour maintenant",
     "updatingContainer": "Téléchargement de la nouvelle image et redémarrage. Cette page se recharge quand FreeLLMAPI est de retour.",
     "updateNowFailed": "Le service de mise à jour a refusé la demande. Vérifiez que le conteneur watchtower tourne.",
-    "updateNowTimeout": "FreeLLMAPI n’a pas redémarré après 5 minutes. Consultez les journaux du conteneur watchtower."
+    "updateNowTimeout": "FreeLLMAPI n’a pas redémarré après 5 minutes. Consultez les journaux du conteneur watchtower.",
+    "injectSystemDate": "Date système dans le prompt",
+    "injectSystemDateHelp": "Ajoute la date UTC du jour (YYYY-MM-DD) au début du prompt système pour aider les modèles avec la recherche web. Ignoré si l’appelant fournit déjà une date.",
+    "injectSystemDateOff": "Désactivé",
+    "injectSystemDateWebSearch": "Recherche web",
+    "injectSystemDateAlways": "Toujours"
   },
   "models": {
     "title": "Modèles",

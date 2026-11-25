@@ -60,7 +60,16 @@
     "emailChanged": "Đã đổi e-mail thành công.",
     "passwordReset": "Đã đặt lại mật khẩu. Vui lòng đăng nhập.",
     "resetCodeDockerHint": "Đang chạy trong Docker? Mã nằm trong nhật ký của container: docker logs <container>.",
-    "desktopSessionFailed": "Bảng điều khiển không thể đăng nhập vào máy chủ cục bộ. Hãy thoát FreeLLMAPI và mở lại."
+    "desktopSessionFailed": "Bảng điều khiển không thể đăng nhập vào máy chủ cục bộ. Hãy thoát FreeLLMAPI và mở lại.",
+    "signInWithSso": "Đăng nhập bằng {provider}",
+    "orContinueWithPassword": "hoặc tiếp tục bằng email",
+    "reverifyWithSso": "Xác minh lại bằng {provider}",
+    "oidcReauthHint": "Xác nhận danh tính với {provider} để truy cập khóa dạng văn bản thuần.",
+    "oidcReauthSuccess": "Đã xác minh danh tính trong 5 phút tới.",
+    "oidcErrorNotAllowed": "Tài khoản của bạn không được phép đăng nhập vào bảng điều khiển này.",
+    "oidcErrorUnverifiedEmail": "Nhà cung cấp danh tính phải xác minh địa chỉ email của bạn trước khi đăng nhập.",
+    "oidcErrorNoAccount": "Không có tài khoản khớp và tính năng tự động tạo tài khoản đang tắt.",
+    "oidcErrorFailed": "Đăng nhập một lần thất bại. Vui lòng thử lại."
   },
   "common": {
     "save": "Lưu",
@@ -171,7 +180,12 @@
     "updateNow": "Cập nhật ngay",
     "updatingContainer": "Đang kéo image mới và khởi động lại. Trang này sẽ tải lại khi FreeLLMAPI hoạt động trở lại.",
     "updateNowFailed": "Trình cập nhật không chấp nhận yêu cầu. Hãy kiểm tra container watchtower đang chạy.",
-    "updateNowTimeout": "FreeLLMAPI chưa khởi động lại sau 5 phút. Hãy xem nhật ký của container watchtower."
+    "updateNowTimeout": "FreeLLMAPI chưa khởi động lại sau 5 phút. Hãy xem nhật ký của container watchtower.",
+    "injectSystemDate": "System date in prompt",
+    "injectSystemDateHelp": "Prepend today’s UTC date (YYYY-MM-DD) to the system prompt so models query web search for current information. Skipped if the caller already includes a date. Off or Web search is recommended to preserve prompt caching.",
+    "injectSystemDateOff": "Off",
+    "injectSystemDateWebSearch": "Web search",
+    "injectSystemDateAlways": "Always"
   },
   "models": {
     "title": "Người mẫu",

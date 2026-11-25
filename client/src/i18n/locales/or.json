@@ -60,7 +60,16 @@
     "emailChanged": "ଇମେଲ ସଫଳତାର ସହ ବଦଳିଲା।",
     "passwordReset": "ପାସୱାର୍ଡ ରିସେଟ ହେଲା। ଦୟାକରି ସାଇନ ଇନ କରନ୍ତୁ।",
     "resetCodeDockerHint": "Docker ରେ ଚଳାଉଛନ୍ତି କି? କୋଡ କଣ୍ଟେନର ଲଗରେ ଅଛି: docker logs <container>।",
-    "desktopSessionFailed": "ଡ୍ୟାସବୋର୍ଡ ଲୋକାଲ ସର୍ଭରରେ ସାଇନ ଇନ କରିପାରିଲା ନାହିଁ। FreeLLMAPI ବନ୍ଦ କରି ପୁଣି ଖୋଲନ୍ତୁ।"
+    "desktopSessionFailed": "ଡ୍ୟାସବୋର୍ଡ ଲୋକାଲ ସର୍ଭରରେ ସାଇନ ଇନ କରିପାରିଲା ନାହିଁ। FreeLLMAPI ବନ୍ଦ କରି ପୁଣି ଖୋଲନ୍ତୁ।",
+    "signInWithSso": "Sign in with {provider}",
+    "orContinueWithPassword": "or continue with email",
+    "reverifyWithSso": "Re-verify with {provider}",
+    "oidcReauthHint": "Confirm your identity with {provider} to access plaintext keys.",
+    "oidcReauthSuccess": "Identity verified for the next 5 minutes.",
+    "oidcErrorNotAllowed": "Your account is not permitted to sign in to this dashboard.",
+    "oidcErrorUnverifiedEmail": "Your identity provider must verify your email address before signing in.",
+    "oidcErrorNoAccount": "No matching account exists and automatic account creation is disabled.",
+    "oidcErrorFailed": "Single sign-on failed. Please try again."
   },
   "common": {
     "save": "ସଞ୍ଚୟ କରନ୍ତୁ",
@@ -171,7 +180,12 @@
     "updateNow": "ବର୍ତ୍ତମାନ ଅପଡେଟ୍ କରନ୍ତୁ",
     "updatingContainer": "ନୂଆ ଇମେଜ୍ ଟାଣାଯାଉଛି ଏବଂ ପୁନଃ ଆରମ୍ଭ ହେଉଛି। FreeLLMAPI ଫେରିଲେ ଏହି ପୃଷ୍ଠା ପୁନଃ ଲୋଡ୍ ହେବ।",
     "updateNowFailed": "ଅପଡେଟର ଅନୁରୋଧ ଗ୍ରହଣ କଲା ନାହିଁ। watchtower କଣ୍ଟେନର ଚାଲୁଛି କି ନାହିଁ ଯାଞ୍ଚ କରନ୍ତୁ।",
-    "updateNowTimeout": "୫ ମିନିଟ ପରେ ମଧ୍ୟ FreeLLMAPI ପୁନଃ ଆରମ୍ଭ ହୋଇନାହିଁ। watchtower କଣ୍ଟେନରର ଲଗ୍ ଦେଖନ୍ତୁ।"
+    "updateNowTimeout": "୫ ମିନିଟ ପରେ ମଧ୍ୟ FreeLLMAPI ପୁନଃ ଆରମ୍ଭ ହୋଇନାହିଁ। watchtower କଣ୍ଟେନରର ଲଗ୍ ଦେଖନ୍ତୁ।",
+    "injectSystemDate": "System date in prompt",
+    "injectSystemDateHelp": "Prepend today’s UTC date (YYYY-MM-DD) to the system prompt so models query web search for current information. Skipped if the caller already includes a date. Off or Web search is recommended to preserve prompt caching.",
+    "injectSystemDateOff": "Off",
+    "injectSystemDateWebSearch": "Web search",
+    "injectSystemDateAlways": "Always"
   },
   "models": {
     "title": "ମଡେଲଗୁଡିକ",
