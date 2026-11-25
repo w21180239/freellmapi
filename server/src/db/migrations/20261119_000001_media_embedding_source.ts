@@ -1,8 +1,8 @@
 // Migration: source provenance (catalog vs user) for media and embedding rows
 // Created: 2026-11-19
 //
-// DOWN: reversible for the schema (DROP COLUMN). The dropped catalog_local_pins
-// table and the stripped meta_json.userAdded markers are not restored.
+// DOWN: recreates the empty catalog_local_pins table; pin rows and the stripped
+// meta_json.userAdded markers are not restored. The columns are upstream's.
 //
 // Same contract as models.source: 'catalog' rows follow the signed catalog,
 // 'user' rows are the owner's and catalog sync never updates, prunes or
@@ -62,7 +62,17 @@ export function up(db: Db): void {
   }
 }
 
-// embedding_models.source belongs to upstream's 20261118 migration; its down() drops it.
+// Both source columns belong to upstream migrations (20261118 embeddings,
+// 20261125 media), whose down() drops them. This only restores the (empty)
+// pin table up() dropped; its rows and the userAdded markers are gone.
 export function down(db: Db): void {
-  if (hasColumn(db, 'media_models', 'source')) db.prepare('ALTER TABLE media_models DROP COLUMN source').run();
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS catalog_local_pins (
+      kind TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (kind, platform, model_id)
+    )
+  `).run();
 }

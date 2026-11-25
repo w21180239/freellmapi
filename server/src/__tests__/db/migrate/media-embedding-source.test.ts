@@ -6,10 +6,12 @@ import { down, up } from '../../../db/migrations/20261119_000001_media_embedding
 // Folds the three old ways a local media/embedding row survived catalog sync
 // (custom/key-bound, meta_json.userAdded, catalog_local_pins) into source='user'.
 
+// The source columns are upstream's (20261118 / 20261125); drop them directly to
+// get the pre-migration shape.
 async function migratedWithoutSource(): Promise<Database.Database> {
   const db = new Database(':memory:');
   await runMigrations(db, 'up');
-  down(db);
+  db.exec('ALTER TABLE media_models DROP COLUMN source; ALTER TABLE embedding_models DROP COLUMN source;');
   return db;
 }
 
@@ -55,6 +57,17 @@ describe('20261119_000001_media_embedding_source', () => {
 
       up(db); // replay is a no-op
       expect(sourceOf(db, 'media_models', 'pinned-tts')).toBe('user');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('down recreates the empty pin table', async () => {
+    const db = await migratedWithoutSource();
+    try {
+      up(db);
+      down(db);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM catalog_local_pins').get()).toEqual({ n: 0 });
     } finally {
       db.close();
     }

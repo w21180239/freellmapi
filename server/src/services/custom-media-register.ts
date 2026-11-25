@@ -67,7 +67,8 @@ export function registerCustomMediaModel(
              priority = ?,
              enabled = 1,
              quota_label = ?,
-             key_id = ?
+             key_id = ?,
+             source = 'user'
        WHERE id = ?
     `).run(entry.displayName, entry.modality, priority, quotaLabel, bindKeyId, existingModel.id);
     return { modelDbId: existingModel.id, model: modelId, modality: entry.modality, created: false };
