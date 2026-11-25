@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { DashboardHttpError, dashboardClient, type DashboardOptions } from './dashboard.js';
+import { forkAddHelp, forkAddModels } from './fork-models-add.js';
 import { formatTable, oneLine } from './table.js';
 
 export interface ModelsCommandOptions extends DashboardOptions {
@@ -40,6 +41,7 @@ export function modelsHelp(): string {
     'add registers chat models from a JSON array of objects (chat kind only). Fields: platform, modelId',
     '(required); displayName, contextWindow, rpmLimit, rpdLimit, tpmLimit, tpdLimit, monthlyTokenBudget,',
     'supportsVision, supportsTools, keyId, endpointScope (optional). Every row is validated before any request.',
+    ...forkAddHelp(),
   ].join('\n');
 }
 
@@ -191,7 +193,7 @@ export async function runModels(options: ModelsCommandOptions): Promise<number> 
     if (rest.length > 1) throw new Error(`models add takes one file.
 
 ${modelsHelp()}`);
-    return addModels(options, rest[0]);
+    return (await forkAddModels(options, rest[0])) ?? addModels(options, rest[0]);
   }
   if (!MODEL_KINDS.includes(kind)) throw new Error(`--kind must be one of ${MODEL_KINDS.join(', ')}`);
 
