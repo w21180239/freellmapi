@@ -487,6 +487,7 @@ function isCatalog(value: unknown): value is Catalog {
  *    the catalog entry is skipped outright; the same rule now applies to
  *    embedding_models.source, so an embedding model the operator registered
  *    on a native platform survives a catalog that does not list it;
+ *    media_models.source follows the same rule for every media modality;
  *  - catalog models the user deleted stay deleted via tombstones, while models
  *    auto-retired from an upstream 410/end-of-life response (#634) are only
  *    disabled — a catalog that still lists them lifts the retirement;
@@ -696,8 +697,8 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
     WHERE id = @id
   `);
   const insertMedia = db.prepare(`
-    INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled, quota_label, meta_json)
-    VALUES (@platform, @modelId, @displayName, @modality, @priority, @enabled, @quotaLabel, @metaJson)
+    INSERT INTO media_models (platform, model_id, display_name, modality, priority, enabled, quota_label, meta_json, source)
+    VALUES (@platform, @modelId, @displayName, @modality, @priority, @enabled, @quotaLabel, @metaJson, 'catalog')
   `);
   const selectEmbedding = db.prepare(`
     SELECT id, enabled, source, family, display_name, dimensions, max_input_tokens, priority, quota_label
@@ -929,13 +930,14 @@ function applyCatalogInner(db: Db, catalog: Catalog): NonNullable<SyncResult['co
       if (specialistTask(m.modelId, m.platform) !== m.task) { counts.skippedUnknownPlatform++; continue; }
       if (isCatalogModelTombstoned(db, 'media', m.platform, m.modelId)) continue;
       specialistIds.add(m.modelId);
-      const row = selectMedia.get(m.platform, m.modelId) as {id:number;enabled:number}|undefined;
+      const row = selectMedia.get(m.platform, m.modelId) as {id:number;enabled:number;source:string}|undefined;
+      if (row && row.source === 'user') continue;
       const fields = {displayName:m.displayName, modality:m.task, priority:0, quotaLabel:m.quotaLabel ?? '', metaJson:null};
       if (row) { updateMedia.run({...fields, id:row.id, enabled:m.enabled ? row.enabled : 0}); counts.updated++; }
       else { insertMedia.run({...fields, platform:m.platform, modelId:m.modelId, enabled:m.enabled ? 1 : 0}); counts.inserted++; }
     }
     // A downgrade to a free snapshot lacking the registry must revoke these rows.
-    for (const row of db.prepare("SELECT id,model_id FROM media_models WHERE platform IN ('ovh','cloudflare','xkiro') AND modality IN ('translation','summarization')").all() as {id:number;model_id:string}[]) {
+    for (const row of db.prepare("SELECT id,model_id FROM media_models WHERE platform IN ('ovh','cloudflare','xkiro') AND modality IN ('translation','summarization') AND source = 'catalog'").all() as {id:number;model_id:string}[]) {
       if (!specialistIds.has(row.model_id)) { db.prepare('DELETE FROM media_models WHERE id=?').run(row.id); counts.removed++; }
     }
 
