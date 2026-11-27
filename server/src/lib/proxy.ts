@@ -952,13 +952,19 @@ export function loopbackLookup(hostname: string, options: { all?: boolean; famil
   else callback(null, addrs[0].address, addrs[0].family);
 }
 
-let _localhostDispatcher: unknown;
-async function getLocalhostDispatcher(): Promise<unknown> {
-  if (!_localhostDispatcher) {
-    const { Agent } = await import('undici');
-    _localhostDispatcher = new Agent({ connect: { lookup: loopbackLookup as never } });
+// Node's bundled undici 8+ (Node 26) rejects an npm undici 6 Agent ("invalid
+// onError method"), so there the Agent goes with the npm package's own fetch.
+let _localhost: { dispatcher: unknown; npmFetch?: typeof fetch } | undefined;
+async function getLocalhostFetch(): Promise<{ dispatcher: unknown; npmFetch?: typeof fetch }> {
+  if (!_localhost) {
+    const { Agent, fetch: undiciFetch } = await import('undici');
+    const bundledMajor = Number(process.versions.undici?.split('.')[0] ?? 0);
+    _localhost = {
+      dispatcher: new Agent({ connect: { lookup: loopbackLookup as never } }),
+      npmFetch: bundledMajor >= 8 ? undiciFetch as unknown as typeof fetch : undefined,
+    };
   }
-  return _localhostDispatcher;
+  return _localhost;
 }
 
 /** Direct (no proxy) fetch. `*.localhost` targets connect over loopback
@@ -966,8 +972,8 @@ async function getLocalhostDispatcher(): Promise<unknown> {
  * when it classified them as loopback. */
 async function directFetch(url: string, init: RequestInit | undefined): Promise<Response> {
   if (isLocalhostSubdomainUrl(url)) {
-    const dispatcher = await getLocalhostDispatcher();
-    return fetch(url, { ...init, dispatcher } as unknown as RequestInit);
+    const local = await getLocalhostFetch();
+    return (local.npmFetch ?? fetch)(url, { ...init, dispatcher: local.dispatcher } as unknown as RequestInit);
   }
   return fetch(url, init);
 }
